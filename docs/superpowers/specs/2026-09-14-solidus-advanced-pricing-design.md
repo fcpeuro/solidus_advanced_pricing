@@ -65,6 +65,18 @@ A Solidus extension gem that adds to prices:
   backfills every existing price into it. Rationale: "every price has a type" is a far easier
   invariant to hold than "nil is secretly a type", and admins see a real name in the UI.
 
+- **Contextual filters are tri-state** (`at`, `role_ids`): `nil` means "ignore this filter"
+  (administrative lookup), a value means filter by it, and `role_ids: []` means a guest with no
+  roles. Rationale: `Spree::Config.default_pricing_options` calls `PricingOptions.new` with no
+  arguments, so an unfiltered default keeps every admin lookup byte-identical to core, while a
+  guest is still correctly denied role-restricted prices.
+- **`at`/`role_ids` are readers on the pricing options, NOT keys in `desired_attributes`.**
+  Rationale: core calls `prices.build(default_price_attributes)`, so every key in that hash must
+  be an assignable `Spree::Price` column. `price_type_id` qualifies; contextual filters do not.
+- **`admin_notes` text column on `spree_prices`** for internal-facing commentary
+  ("Labor Day Sale 2025", "Overstock Sale of 2012"). Internal only — never rendered to
+  customers. Rationale: makes historical prices legible years after whoever created them left.
+
 ## Context gathered
 
 - Local Solidus checkout: `4.8.0.dev` (`~/RubymineProjects/solidus`), min Rails 7.2.
