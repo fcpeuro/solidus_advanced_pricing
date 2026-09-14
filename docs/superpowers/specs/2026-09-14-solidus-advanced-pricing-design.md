@@ -39,6 +39,17 @@ A Solidus extension gem that adds to prices:
   Rationale: the feature is generally useful; building to contrib conventions from the start
   is cheaper than retrofitting them.
 
+- **Lowest amount always wins** among prices that are eligible for the customer, currency and
+  country. Rationale: trivial for admins to reason about; targeting is expressed by role rules
+  and date windows, not by precedence juggling.
+- **No display-only price types.** Every price is a selection candidate; compare-at/MSRP
+  display is the storefront's concern. Rationale: keeps the model small; a `sellable` flag can
+  be added later without breaking anything.
+- **Stale carts are left alone.** A line item keeps its captured price when the source price
+  expires or the customer loses a role; the gem does not hook the order updater.
+  Rationale: matches core, which never re-prices line items on its own, and keeps this gem out
+  of the order lifecycle.
+
 ## Context gathered
 
 - Local Solidus checkout: `4.8.0.dev` (`~/RubymineProjects/solidus`), min Rails 7.2.
