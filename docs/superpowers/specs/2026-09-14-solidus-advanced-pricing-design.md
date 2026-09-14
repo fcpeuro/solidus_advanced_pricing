@@ -50,6 +50,21 @@ A Solidus extension gem that adds to prices:
   Rationale: matches core, which never re-prices line items on its own, and keeps this gem out
   of the order lifecycle.
 
+- **Storage approach A**: additive columns on `spree_prices` plus two gem-owned tables
+  (price types, price role rules). Rationale: the selector stays a single joinable query and
+  eligibility becomes composable AR scopes, instead of the LEFT-OUTER-JOIN dance a sidecar
+  table would force on every lookup.
+- **Role rules live in one table with a `mode` column** (`restrict` / `exclude`) rather than
+  two associations. Rationale: "exclude wins" becomes a single evaluation order, and the admin
+  renders one list of rules instead of two pickers.
+- **Filter first, then lowest amount wins.** Currency, country specificity, validity window and
+  role rules narrow the candidate set; the lowest amount wins *within* the surviving bucket.
+  Rationale: core treats country as specificity, not competition — a `nil`-country fallback
+  must not undercut a deliberate country-specific price.
+- **`price_type_id` is NOT NULL**; the install migration seeds a `default` price type and
+  backfills every existing price into it. Rationale: "every price has a type" is a far easier
+  invariant to hold than "nil is secretly a type", and admins see a real name in the UI.
+
 ## Context gathered
 
 - Local Solidus checkout: `4.8.0.dev` (`~/RubymineProjects/solidus`), min Rails 7.2.
