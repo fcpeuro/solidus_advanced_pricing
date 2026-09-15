@@ -77,6 +77,35 @@ A Solidus extension gem that adds to prices:
   ("Labor Day Sale 2025", "Overstock Sale of 2012"). Internal only — never rendered to
   customers. Rationale: makes historical prices legible years after whoever created them left.
 
+- **solidus_admin scope is price types CRUD only.** Per-variant price management stays in the
+  legacy backend. Rationale: the new admin has no price management at all — `Products::Show`
+  exposes a single `f.text_field(:price)` writing through `DefaultPrice`, with no prices index,
+  form or route. Building that screen is a larger project than this feature and would be a guess
+  at a design upstream has not yet landed.
+- **The API passes explicit pricing options** rather than inheriting `current_pricing_options`.
+  Rationale: core builds those `from_context`, which reads `current_spree_user`; on an
+  admin-token request that would silently filter storefront prices by the *admin's* roles.
+- **Promotions were investigated and set aside.** `solidus_promotions` already ships
+  `Benefits::AdvertisePrice`, price-level conditions (`PriceProduct`/`PriceTaxon`/
+  `PriceOptionValue`), `Conditions::UserRole`, `PricePatch` (`discounts`/`discounted_amount`)
+  and `ProductAdvertiser`. It is not adopted because: a promotion *discounts* a price rather
+  than replacing it (wrong semantics for B2B — it leaks retail and reports as promotional
+  revenue); `Conditions::UserRole` implements only `order_eligible?` with `any`/`all` policies,
+  so there is no price-level or exclude form; `ProductAdvertiser` is never invoked by Solidus
+  and needs an order, which is awkward on catalog pages and for guests; and promotions have no
+  concept of a price type at all. Revisit for time-boxed sale pricing, which the promotion
+  engine genuinely does better.
+- **One `role_id` per price, modeled on `country_iso`** — nullable FK to `spree_roles`, `nil`
+  meaning every customer including guests. The `price_role_rules` join table and role
+  *exclusion* are dropped. Rationale: matches how country already works, removes a table and
+  with it the N+1 preloading problem, and makes `role_id` a plain indexed column that
+  `with_prices` can filter in SQL. Cost: "everyone except role X" is no longer expressible.
+- **`role_id` joins `desired_attributes`; the customer's roles stay separate.** `role_id` is a
+  real price column, so `default_price_attributes` pins it to `nil` and the admin always edits
+  the unrestricted base price — exactly as country is pinned today. The customer side is a set
+  (`has_many :roles`), carried as the tri-state `customer_role_ids` reader alongside `at`.
+  Eligibility is `price.role_id.nil? || customer_role_ids.include?(price.role_id)`.
+
 ## Context gathered
 
 - Local Solidus checkout: `4.8.0.dev` (`~/RubymineProjects/solidus`), min Rails 7.2.
