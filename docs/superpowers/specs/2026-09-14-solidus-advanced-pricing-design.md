@@ -210,7 +210,8 @@ Every explicit decision from the brainstorm, with rationale.
   Rationale: store admins can add types without a deploy, and `position` gives a deterministic
   tie-breaker.
 - **v1 ships the full stack**: model + price-selection core, legacy backend admin UI,
-  solidus_admin UI, and REST API exposure.
+  solidus_admin UI, and REST API exposure. (The solidus_admin half was later scoped down to a
+  price types CRUD — see that decision below.)
   Rationale: an extension nobody can edit or read over the API isn't usable in a real store.
 - **Role targeting uses `Spree::Role`**, not a gem-owned group model or lambda predicates.
   Rationale: works out of the box with solidus_auth_devise and any roles a store already
