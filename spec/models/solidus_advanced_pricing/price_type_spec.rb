@@ -22,4 +22,58 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
     expect(described_class.all).not_to include(price_type)
     expect(described_class.with_discarded).to include(price_type)
   end
+
+  it 'requires a code' do
+    price_type = described_class.new(name: 'X')
+    expect(price_type).not_to be_valid
+    expect(price_type.errors[:code]).to be_present
+  end
+
+  it 'normalizes the code to lowercase' do
+    expect(create(:price_type, code: '  Wholesale  ').code).to eq('wholesale')
+  end
+
+  it 'rejects a code differing only in case' do
+    create(:price_type, code: 'sale')
+    expect(described_class.new(name: 'Other', code: 'SALE')).not_to be_valid
+  end
+
+  it "keeps a discarded type's code reserved" do
+    create(:price_type, code: 'retired').discard
+    expect(described_class.new(name: 'Again', code: 'retired')).not_to be_valid
+  end
+
+  it 'allows only one default at a time' do
+    first = create(:price_type, :default)
+    second = create(:price_type, :default)
+    expect(first.reload).not_to be_default
+    expect(described_class.where(default: true)).to contain_exactly(second)
+  end
+
+  it 'promotes the only type to default automatically' do
+    expect(create(:price_type).reload).to be_default
+  end
+
+  describe '.default' do
+    it 'returns the flagged type' do
+      default_type = create(:price_type, :default)
+      expect(described_class.default).to eq(default_type)
+    end
+
+    it 'returns nil when the table is empty' do
+      expect(described_class.default).to be_nil
+    end
+  end
+
+  describe '.ordered' do
+    it 'orders by position then id' do
+      second = create(:price_type, position: 2)
+      first = create(:price_type, position: 1)
+      expect(described_class.ordered.to_a).to eq([first, second])
+    end
+  end
+
+  it 'uses its name as its label' do
+    expect(create(:price_type, name: 'Wholesale').to_s).to eq('Wholesale')
+  end
 end

@@ -6,5 +6,13 @@ FactoryBot.define do
     sequence(:code) { |n| "price_type_#{n}" }
     position { 100 }
     default { false }
+
+    trait :default do
+      default { true }
+    end
+
+    trait :discarded do
+      deleted_at { Time.current }
+    end
   end
 end
