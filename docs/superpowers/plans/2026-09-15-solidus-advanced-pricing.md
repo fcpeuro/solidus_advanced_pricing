@@ -143,6 +143,14 @@ FactoryBot.define do
     sequence(:code) { |n| "price_type_#{n}" }
     position { 100 }
     default { false }
+
+    trait :default do
+      default { true }
+    end
+
+    trait :discarded do
+      deleted_at { Time.current }
+    end
   end
 end
 ```
@@ -208,8 +216,65 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
     expect(described_class.all).not_to include(price_type)
     expect(described_class.with_discarded).to include(price_type)
   end
+
+  it 'requires a code' do
+    price_type = described_class.new(name: 'X')
+    expect(price_type).not_to be_valid
+    expect(price_type.errors[:code]).to be_present
+  end
+
+  it 'normalizes the code to lowercase' do
+    expect(create(:price_type, code: '  Wholesale  ').code).to eq('wholesale')
+  end
+
+  it 'rejects a code differing only in case' do
+    create(:price_type, code: 'sale')
+    expect(described_class.new(name: 'Other', code: 'SALE')).not_to be_valid
+  end
+
+  it 'keeps a discarded type\'s code reserved' do
+    create(:price_type, code: 'retired').discard
+    expect(described_class.new(name: 'Again', code: 'retired')).not_to be_valid
+  end
+
+  it 'allows only one default at a time' do
+    first = create(:price_type, :default)
+    second = create(:price_type, :default)
+    expect(first.reload).not_to be_default
+    expect(described_class.where(default: true)).to contain_exactly(second)
+  end
+
+  it 'promotes the only type to default automatically' do
+    expect(create(:price_type).reload).to be_default
+  end
+
+  describe '.default' do
+    it 'returns the flagged type' do
+      default_type = create(:price_type, :default)
+      expect(described_class.default).to eq(default_type)
+    end
+
+    it 'returns nil when nothing is flagged' do
+      expect(described_class.default).to be_nil
+    end
+  end
+
+  describe '.ordered' do
+    it 'orders by position then id' do
+      second = create(:price_type, position: 2)
+      first = create(:price_type, position: 1)
+      expect(described_class.ordered.to_a).to eq([first, second])
+    end
+  end
+
+  it 'uses its name as its label' do
+    expect(create(:price_type, name: 'Wholesale').to_s).to eq('Wholesale')
+  end
 end
 ```
+
+Note: the "promotes the only type to default" example means the `.default` returning nil case
+only holds when the table is empty. Write it that way.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -256,17 +321,24 @@ module SolidusAdvancedPricing
 
     self.table_name = 'solidus_advanced_pricing_price_types'
 
-    has_many :prices,
-      class_name: 'Spree::Price',
-      foreign_key: :price_type_id,
-      inverse_of: :price_type,
-      dependent: :restrict_with_error
+    # NOTE: `has_many :prices` is deliberately NOT declared here. `spree_prices`
+    # has no `price_type_id` column and `Spree::Price` has no `price_type`
+    # association until Task 7, so declaring it now makes both `prices` and
+    # `destroy` raise InverseOfAssociationNotFoundError. It lands in Task 7.
+
+    before_validation :normalize_code
+    before_save :ensure_default_exists_and_is_unique
 
     validates :name, presence: true
-    validates :code, presence: true, uniqueness: { case_sensitive: false }
+    # Codes are normalized to lowercase so a plain unique index IS the rule on
+    # PostgreSQL, MySQL and SQLite alike. `case_sensitive: false` would have the
+    # validator and the index disagree on PG/SQLite, letting `insert_all` create
+    # two rows differing only in case.
+    validates :code, presence: true, uniqueness: { case_sensitive: true }
 
     scope :ordered, -> { order(:position, :id) }
 
+    # Returns the price type every price falls back to, or nil before seeding.
     def self.default
       find_by(default: true)
     end
@@ -274,9 +346,33 @@ module SolidusAdvancedPricing
     def to_s
       name
     end
+
+    private
+
+    def normalize_code
+      self.code = code&.strip&.downcase.presence
+    end
+
+    # Mirrors Spree::Store#ensure_default_exists_and_is_unique. Without it two
+    # rows can carry `default: true`, and Task 6 memoizes the default id per
+    # process — two workers could memoize different ids and price lookups would
+    # diverge by worker.
+    def ensure_default_exists_and_is_unique
+      if default?
+        self.class.where.not(id: id).update_all(default: false)
+      elsif self.class.where(default: true).where.not(id: id).none?
+        self.default = true
+      end
+    end
   end
 end
 ```
+
+**Codes are permanent.** Uniqueness is deliberately NOT scoped to kept records:
+`UniquenessValidator` starts from `klass.unscoped`, so a discarded type keeps its code
+reserved. Retiring `clearance` and later wanting it back means restoring that record, not
+creating a second one. This avoids partial indexes, which MySQL does not support at all.
+Task 5's seeds must therefore use `with_discarded`.
 
 - [ ] **Step 5: Migrate the dummy app and run the test**
 
