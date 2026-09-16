@@ -22,6 +22,8 @@ Dir["#{__dir__}/support/**/*.rb"].sort.each { |f| require f }
 # See: lib/solidus_advanced_pricing/testing_support/factories.rb
 SolidusDevSupport::TestingSupport::Factories.load_for(SolidusAdvancedPricing::Engine)
 
+require "db_query_matchers"
+
 RSpec.configure do |config|
   config.infer_spec_type_from_file_location!
   config.use_transactional_fixtures = false

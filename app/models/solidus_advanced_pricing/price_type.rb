@@ -57,6 +57,8 @@ module SolidusAdvancedPricing
       name
     end
 
+    after_commit { SolidusAdvancedPricing::PriceTypeCache.clear }
+
     private
 
     def normalize_code
