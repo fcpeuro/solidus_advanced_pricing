@@ -29,7 +29,9 @@ than by monkey-patching price lookup.
 
 ## Non-goals
 
-- **Time-boxed sale pricing.** That belongs in `solidus_promotions`, which does it better.
+- **Promotion machinery** — lanes, codes, usage limits, stacking rules, order-level
+  adjustments. A windowed `sale` or `clearance` price *is* supported; anything needing
+  promotional logic belongs in `solidus_promotions`.
 - **Role exclusion.** Only inclusion is expressible. "Everyone except employees" requires one
   targeted price per included role.
 - **Re-pricing existing line items.** Carts are left alone, matching core.
@@ -65,8 +67,25 @@ spree_prices                                   (columns added)
 `role_id` is modeled on `country_iso`: nullable, where `nil` means "every customer, including
 guests". There is no join table and no exclusion.
 
-The install migration seeds a `default` price type (`default: true`) and backfills every
-existing price into it before adding the NOT NULL constraint.
+The install migration seeds five price types, keyed by `code` so re-running is idempotent,
+then backfills every existing price into `default` before adding the NOT NULL constraint:
+
+| code | position | default | notes |
+|---|---|---|---|
+| `default` | 1 | yes | backfill target; guarded against discard |
+| `wholesale` | 2 | | |
+| `sale` | 3 | | typically paired with a validity window |
+| `clearance` | 4 | | |
+| `employee` | 5 | | typically paired with `role_id` |
+
+Only `default` is structural. The other four are conveniences — admins may rename, reposition
+or discard them freely, and may add their own.
+
+**A price type grants no access control.** Type and `role_id` are independent columns: naming a
+price `employee` does not hide it from anyone. An employee-only price is
+`price_type: employee` **and** `role_id: <employee role>`. This is the most likely
+misconfiguration in the whole gem and must be called out in both the README and the admin form
+hint text.
 
 ## Price selection
 
@@ -252,6 +271,12 @@ Every explicit decision from the brainstorm, with rationale.
   not.** Rationale: core calls `prices.build(default_price_attributes)`, so every key in that
   hash must be an assignable `Spree::Price` column. The first two are columns; the contextual
   filters are not.
+- **Five price types ship seeded**: `default`, `wholesale`, `sale`, `clearance`, `employee`,
+  seeded idempotently by `code`. Only `default` is structural and guarded; the rest are
+  editable and discardable conveniences.
+  Rationale: a store gets a usable vocabulary on install instead of an empty table, and the
+  names document the intended use cases. Consequence recorded above: a type name conveys no
+  access control — `employee` without `role_id` is visible to everyone.
 - **`admin_notes` text column on `spree_prices`** for internal commentary ("Labor Day Sale 2025",
   "Overstock Sale of 2012"), never rendered to customers.
   Rationale: makes historical prices legible years after whoever created them left.
