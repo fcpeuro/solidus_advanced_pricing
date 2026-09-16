@@ -470,6 +470,7 @@ en:
           attributes:
             base:
               cannot_discard_default: "The default price type cannot be deleted."
+              referenced_by_prices: "This price type is still used by one or more prices and cannot be deleted. Retire it instead."
 ```
 
 - [ ] **Step 5: Run the full model spec**
@@ -746,8 +747,28 @@ RSpec.describe Spree::Price do
   it 'backfills existing prices onto the default type' do
     expect(described_class.where(price_type_id: nil).count).to eq(0)
   end
+
+  it 'keeps its price type after the type is retired' do
+    sale_type = SolidusAdvancedPricing::PriceType.find_by(code: 'sale')
+    price = create(:price, price_type: sale_type)
+    sale_type.discard
+    expect(price.reload.price_type).to eq(sale_type)
+  end
+
+  it 'blocks destroying a type that a discarded price still references' do
+    sale_type = SolidusAdvancedPricing::PriceType.find_by(code: 'sale')
+    price = create(:price, price_type: sale_type)
+    price.discard
+    expect(sale_type.destroy).to be(false)
+    expect(SolidusAdvancedPricing::PriceType.with_discarded).to include(sale_type)
+  end
 end
 ```
+
+The "keeps its price type after the type is retired" example is the whole point of declaring
+`belongs_to :price_type, -> { with_discarded }`. Without the scope, `Spree::SoftDeletable`'s
+`default_scope { kept }` makes `price.price_type` return nil for a retired type, and
+"Overstock Sale of 2012" silently loses its label. It is easy to regress, so it is pinned.
 
 - [ ] **Step 2: Run and watch it fail**
 
@@ -835,6 +856,30 @@ module SolidusAdvancedPricing
           optional: true
 
         base.before_validation :assign_default_price_type
+      end
+
+      # Declared here rather than in PriceType (Task 3) because the inverse
+      # association must exist first, or `prices` and `destroy` both raise
+      # InverseOfAssociationNotFoundError.
+      SolidusAdvancedPricing::PriceType.class_eval do
+        has_many :prices,
+          class_name: 'Spree::Price',
+          foreign_key: :price_type_id,
+          inverse_of: :price_type
+
+        # NOT `dependent: :restrict_with_error`: that check runs through the
+        # default-scoped association, which hides discarded prices. A type whose
+        # prices were all discarded would pass the check and then hit the foreign
+        # key on DELETE. Retirement is discard-only; hard destroy is blocked
+        # whenever any price — kept or discarded — still references the type.
+        before_destroy :prevent_destroying_referenced_type
+
+        def prevent_destroying_referenced_type
+          return unless prices.with_discarded.exists?
+
+          errors.add(:base, :referenced_by_prices)
+          throw :abort
+        end
       end
 
       private
