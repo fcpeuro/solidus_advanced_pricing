@@ -409,16 +409,14 @@ Append inside the `RSpec.describe` block in `spec/models/solidus_advanced_pricin
       expect(default_type.reload).to be_kept
     end
 
-    it 'cannot have its default flag cleared while it is the only default' do
-      default_type.default = false
-      expect(default_type).not_to be_valid
-      expect(default_type.errors[:default]).to be_present
+    it 're-promotes itself rather than leaving the store with no default' do
+      default_type.update!(default: false)
+      expect(default_type.reload).to be_default
     end
 
-    it 'can have its flag cleared once another default exists' do
+    it 'steps down when another type is made default' do
       create(:price_type, code: 'other', default: true)
-      default_type.default = false
-      expect(default_type).to be_valid
+      expect(default_type.reload).not_to be_default
     end
   end
 ```
@@ -436,18 +434,9 @@ Expected: FAIL — `discard` returns true, no errors added.
 In `app/models/solidus_advanced_pricing/price_type.rb`, add below the validations:
 
 ```ruby
-    validate :default_flag_cannot_be_cleared_when_last_default
     before_discard :prevent_discarding_default
 
     private
-
-    def default_flag_cannot_be_cleared_when_last_default
-      return unless persisted?
-      return unless default_changed? && !default?
-      return if self.class.where(default: true).where.not(id: id).exists?
-
-      errors.add(:default, :cannot_clear_last_default)
-    end
 
     def prevent_discarding_default
       return unless default?
@@ -457,7 +446,16 @@ In `app/models/solidus_advanced_pricing/price_type.rb`, add below the validation
     end
 ```
 
-`before_discard` is provided by `Discard::Model`, which `Spree::SoftDeletable` includes.
+Two things to understand here, both verified against `discard` 2.0.0:
+
+1. **The guard MUST be `before_discard`, not a validation.** `Discard::Model#discard` is
+   `update_attribute(discard_column, Time.current)`, which skips validations entirely — a
+   `validate :cannot_discard_default` would never fire. `Discard::Model` defines
+   `define_model_callbacks :discard` for exactly this purpose, and `throw :abort` aborts it.
+2. **Task 3 already handles the "flag cleared" half.** `ensure_default_exists_and_is_unique`
+   re-promotes a record when clearing its flag would leave no default, so the validation the
+   earlier draft of this plan specified is unnecessary and would fight the callback. Do not
+   add it.
 
 - [ ] **Step 4: Add the error translations**
 
@@ -470,8 +468,6 @@ en:
       models:
         solidus_advanced_pricing/price_type:
           attributes:
-            default:
-              cannot_clear_last_default: "cannot be cleared — at least one price type must be the default"
             base:
               cannot_discard_default: "The default price type cannot be deleted."
 ```
@@ -546,10 +542,13 @@ class SeedSolidusAdvancedPricingPriceTypes < ActiveRecord::Migration[7.0]
   def up
     now = Time.current
 
+    # Matches on code across discarded rows too: codes stay reserved after a
+    # discard (see Task 3), so a `kept`-scoped check would try to insert a
+    # duplicate and hit the unique index.
     SEEDS.each do |attrs|
       next if price_types.where(code: attrs[:code]).exists?
 
-      price_types.insert(attrs.merge(created_at: now, updated_at: now))
+      price_types.insert_all([attrs.merge(created_at: now, updated_at: now)])
     end
   end
 
@@ -567,7 +566,17 @@ class SeedSolidusAdvancedPricingPriceTypes < ActiveRecord::Migration[7.0]
 end
 ```
 
-Using an anonymous model rather than `SolidusAdvancedPricing::PriceType` keeps the migration independent of the app model, so a later model change cannot break a historical migration. Keying on `code` makes it idempotent.
+Using an anonymous model rather than `SolidusAdvancedPricing::PriceType` keeps the migration
+independent of the app model — critically, it bypasses both `default_scope { kept }` (so
+discarded rows are seen) and `ensure_default_exists_and_is_unique` (so inserting five rows,
+four of them `default: false`, does not trigger four rounds of demotion). Keying on `code`
+makes it idempotent.
+
+`default` is a reserved word in MySQL and PostgreSQL. Go through `insert_all` as shown, never
+raw `execute("INSERT INTO ... (default) ...")`, so ActiveRecord quotes the identifier.
+
+The five positions are distinct on purpose: `scope :ordered` falls back to `id` on ties, and
+the seed order is what admins see in every dropdown.
 
 - [ ] **Step 4: Migrate and run the test**
 
@@ -618,7 +627,14 @@ RSpec.describe SolidusAdvancedPricing::PriceTypeCache do
   it 'is cleared when a price type is saved' do
     described_class.default_id
     create(:price_type)
-    expect(described_class.instance_variable_get(:@default_id)).to be_nil
+    expect(described_class.instance_variable_defined?(:@default_id)).to be(false)
+  end
+
+  it 'caches a nil result instead of re-querying forever' do
+    SolidusAdvancedPricing::PriceType.with_discarded.update_all(default: false)
+    described_class.clear
+    described_class.default_id
+    expect { described_class.default_id }.not_to make_database_queries
   end
 end
 ```
@@ -655,12 +671,17 @@ module SolidusAdvancedPricing
   # Cleared by an +after_commit+ on PriceType and Spree::Price.
   module PriceTypeCache
     class << self
+      # `defined?` rather than `||=`: before seeding, the default id is legitimately
+      # nil, and `||=` would re-query on every single pricing lookup — the exact
+      # hot path this exists to avoid.
       def default_id
-        @default_id ||= PriceType.with_discarded.find_by(default: true)&.id
+        return @default_id if defined?(@default_id)
+
+        @default_id = PriceType.with_discarded.find_by(default: true)&.id
       end
 
       def clear
-        @default_id = nil
+        remove_instance_variable(:@default_id) if defined?(@default_id)
       end
     end
   end
