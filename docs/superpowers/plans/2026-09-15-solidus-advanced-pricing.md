@@ -2054,20 +2054,23 @@ Create `lib/views/backend/spree/admin/prices/_advanced_columns.html.erb`:
 
 - [ ] **Step 4: Write the Deface overrides**
 
-Create `app/overrides/spree/admin/prices/_table/add_advanced_columns.html.erb.deface`:
-
-```erb
-<!-- insert_before "erb[loud]:contains('price.money.to_html')" -->
-<%= render 'spree/admin/prices/advanced_columns', price: price %>
-```
+Core's markup puts the actions cell last in both the header row and each body row, so both
+overrides insert *before* it. That keeps headers and cells aligned.
 
 Create `app/overrides/spree/admin/prices/_table/add_advanced_headers.html.erb.deface`:
 
 ```erb
-<!-- insert_bottom "[data-hook='prices_header'] tr" -->
+<!-- insert_before "[data-hook='prices_header'] th.actions" -->
 <th><%= SolidusAdvancedPricing::PriceType.model_name.human %></th>
 <th><%= Spree::Price.human_attribute_name(:role_id) %></th>
 <th><%= t('solidus_advanced_pricing.validity') %></th>
+```
+
+Create `app/overrides/spree/admin/prices/_table/add_advanced_columns.html.erb.deface`:
+
+```erb
+<!-- insert_before "[data-hook='prices_row'] td.actions" -->
+<%= render 'spree/admin/prices/advanced_columns', price: price %>
 ```
 
 Add to `config/locales/en.yml` under `solidus_advanced_pricing:`:
@@ -2076,14 +2079,9 @@ Add to `config/locales/en.yml` under `solidus_advanced_pricing:`:
     validity: "Validity"
 ```
 
-Note: the header override appends to the end of the header row while the cell override inserts before the amount cell, so the columns will not line up. Fix by changing the cell override to `insert_bottom "[data-hook='prices_row']"` so both append:
-
-```erb
-<!-- insert_bottom "[data-hook='prices_row']" -->
-<%= render 'spree/admin/prices/advanced_columns', price: price %>
-```
-
-Use that version. The actions cell sits last in core's markup, so verify column alignment visually when the feature spec passes; if the actions column ends up mid-row, switch both overrides to `insert_before "td.actions"`.
+Verify alignment visually once the feature spec passes — Deface selectors are the most
+version-sensitive part of this plan. `_master_variant_table.html.erb` uses the same hooks, so
+check that table too.
 
 - [ ] **Step 5: Run the test**
 
