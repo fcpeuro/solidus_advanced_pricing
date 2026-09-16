@@ -3,3 +3,10 @@
 
 en:
   hello: Hello world
+  activerecord:
+    errors:
+      models:
+        solidus_advanced_pricing/price_type:
+          attributes:
+            base:
+              cannot_discard_default: "The default price type cannot be deleted."

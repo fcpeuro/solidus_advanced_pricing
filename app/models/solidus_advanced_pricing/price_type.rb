@@ -16,6 +16,7 @@ module SolidusAdvancedPricing
 
     before_validation :normalize_code
     before_save :ensure_default_exists_and_is_unique
+    before_discard :prevent_discarding_default
 
     validates :name, presence: true
     # Codes are normalized to lowercase so a plain unique index IS the rule on
@@ -50,6 +51,13 @@ module SolidusAdvancedPricing
       elsif self.class.where(default: true).where.not(id: id).none?
         self.default = true
       end
+    end
+
+    def prevent_discarding_default
+      return unless default?
+
+      errors.add(:base, :cannot_discard_default)
+      throw :abort
     end
   end
 end

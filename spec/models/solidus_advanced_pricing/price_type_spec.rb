@@ -76,4 +76,24 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
   it 'uses its name as its label' do
     expect(create(:price_type, name: 'Wholesale').to_s).to eq('Wholesale')
   end
+
+  describe 'the default type' do
+    let!(:default_type) { create(:price_type, code: 'default', default: true) }
+
+    it 'cannot be discarded' do
+      expect(default_type.discard).to be(false)
+      expect(default_type.errors[:base]).to be_present
+      expect(default_type.reload).to be_kept
+    end
+
+    it 're-promotes itself rather than leaving the store with no default' do
+      default_type.update!(default: false)
+      expect(default_type.reload).to be_default
+    end
+
+    it 'steps down when another type is made default' do
+      create(:price_type, code: 'other', default: true)
+      expect(default_type.reload).not_to be_default
+    end
+  end
 end
