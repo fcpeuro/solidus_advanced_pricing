@@ -75,8 +75,11 @@ The repo already exists with `docs/` committed. Generate in place.
 
 ```bash
 cd /Users/pat.mcmorran/RubymineProjects/solidus_advanced_pricing
-bundle exec solidus extension . 2>/dev/null || gem exec solidus_dev_support solidus extension .
+solidus extension .
 ```
+
+`solidus` is already on PATH from the installed `solidus_dev_support` gem. Do NOT prefix with
+`bundle exec` — there is no Gemfile yet, so it would fail.
 
 If the generator prompts to overwrite anything under `docs/`, decline.
 
