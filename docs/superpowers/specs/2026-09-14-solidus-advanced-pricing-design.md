@@ -109,8 +109,18 @@ Two contextual readers live *outside* `desired_attributes`, because they are not
 
 Built from context as:
 
-- `from_context(ctx)` → `customer_role_ids: ctx.current_spree_user&.role_ids || []`
-- `from_line_item(li)` → `customer_role_ids: li.order&.user&.role_ids || []`
+- `from_context(ctx)` → `customer_role_ids: ctx.current_spree_user&.spree_role_ids || []`
+- `from_line_item(li)` → `customer_role_ids: li.order&.user&.spree_role_ids || []`
+
+The association is `spree_roles` (see `Spree::UserMethods`), so the reader is `spree_role_ids`,
+not `role_ids`.
+
+**Pricing-relevant narrowing.** Both constructors intersect the customer's roles with the set of
+roles that actually appear on some price — `Spree::Price.distinct.pluck(:role_id).compact`,
+cached and invalidated by a `Spree::Price` `after_commit`. A customer holding
+`[admin, wholesale, newsletter]` narrows to `[wholesale]`. This changes no selection outcome —
+a role no price references can never match — but it collapses cache-key cardinality from
+2^(every role in the store) to 2^(roles used in pricing), which in practice is zero to two.
 
 `SolidusAdvancedPricing::PriceSelector < Spree::Variant::PriceSelector`
 
@@ -180,10 +190,16 @@ window, and `admin_notes`. Two rules:
 
 ## Caching
 
-`PricingOptions#cache_key` in core joins `desired_attributes` values. Since `customer_role_ids`
-and `at` deliberately live outside that hash, an unmodified `cache_key` would render a wholesale
-customer's price into a fragment cache and then serve it to guests. The subclass **must**
-override `cache_key` to include sorted `customer_role_ids`.
+`PricingOptions#cache_key` in core is `desired_attributes.values.select(&:present?).join("/")`.
+Since `customer_role_ids` and `at` deliberately live outside that hash, an unmodified
+`cache_key` would render a wholesale customer's price into a fragment cache and then serve it to
+guests. The subclass **must** override `cache_key` to include sorted `customer_role_ids`.
+
+Note that having `role_id` in `desired_attributes` does *not* solve this. That attribute
+describes the price being sought, not the customer asking: `from_context` leaves it `nil`, so it
+is `nil` for guest and wholesale customer alike — and `select(&:present?)` drops nils regardless.
+Making core's key work unmodified would mean collapsing the customer to a single role, which
+cannot express "visible to any of my roles, cheapest wins".
 
 Time is the harder half: keying on raw `at` gives a 0% hit rate, while omitting it serves prices
 from cache past their window. v1 ships a coarse bucket —
@@ -277,6 +293,10 @@ Every explicit decision from the brainstorm, with rationale.
   Rationale: a store gets a usable vocabulary on install instead of an empty table, and the
   names document the intended use cases. Consequence recorded above: a type name conveys no
   access control — `employee` without `role_id` is visible to everyone.
+- **Customer roles are narrowed to pricing-relevant roles** before they reach the cache key.
+  Rationale: selection is unaffected (a role no price references can never match), but cache
+  cardinality drops from every role combination in the store to just combinations of roles
+  actually used in pricing.
 - **`admin_notes` text column on `spree_prices`** for internal commentary ("Labor Day Sale 2025",
   "Overstock Sale of 2012"), never rendered to customers.
   Rationale: makes historical prices legible years after whoever created them left.
