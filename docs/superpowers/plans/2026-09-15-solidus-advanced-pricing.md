@@ -950,30 +950,6 @@ module SolidusAdvancedPricing
         base.before_validation :assign_default_price_type
       end
 
-      # Declared here rather than in PriceType (Task 3) because the inverse
-      # association must exist first, or `prices` and `destroy` both raise
-      # InverseOfAssociationNotFoundError.
-      SolidusAdvancedPricing::PriceType.class_eval do
-        has_many :prices,
-          class_name: 'Spree::Price',
-          foreign_key: :price_type_id,
-          inverse_of: :price_type
-
-        # NOT `dependent: :restrict_with_error`: that check runs through the
-        # default-scoped association, which hides discarded prices. A type whose
-        # prices were all discarded would pass the check and then hit the foreign
-        # key on DELETE. Retirement is discard-only; hard destroy is blocked
-        # whenever any price — kept or discarded — still references the type.
-        before_destroy :prevent_destroying_referenced_type
-
-        def prevent_destroying_referenced_type
-          return unless prices.with_discarded.exists?
-
-          errors.add(:base, :referenced_by_prices)
-          throw :abort
-        end
-      end
-
       private
 
       # A price with no explicit type belongs to the default type. Declared
@@ -988,15 +964,64 @@ module SolidusAdvancedPricing
 end
 ```
 
-- [ ] **Step 6: Migrate and run**
+- [ ] **Step 6: Add the association to PriceType itself**
+
+In `app/models/solidus_advanced_pricing/price_type.rb`, replace the `NOTE:` comment left by
+Task 3 with the real association:
+
+```ruby
+    has_many :prices,
+      class_name: "Spree::Price",
+      foreign_key: :price_type_id,
+      inverse_of: :price_type
+
+    # NOT `dependent: :restrict_with_error`: that check runs through the
+    # default-scoped association, which hides discarded prices. A type whose
+    # prices were all discarded would pass the check and then hit the foreign
+    # key on DELETE. Retirement is discard-only; hard destroy is blocked
+    # whenever any price — kept or discarded — still references the type.
+    before_destroy :prevent_destroying_referenced_type
+```
+
+and in the existing `private` section:
+
+```ruby
+    def prevent_destroying_referenced_type
+      return unless prices.with_discarded.exists?
+
+      errors.add(:base, :referenced_by_prices)
+      throw :abort
+    end
+```
+
+This belongs in the model, **not** in a `PriceType.class_eval` block inside the decorator.
+Decorator files are re-`load`ed on every `to_prepare`, so a bare `class_eval` at module-body
+level would re-run `before_destroy` on each reload and register the callback repeatedly — the
+guard would fire two, three, four times in development. Association declarations on our own
+model are safe because Rails resolves the `Spree::Price` constant lazily; it does not need to
+exist when the file loads, only when the association is used.
+
+Add the locale key under the `price_type` attributes block in `config/locales/en.yml`:
+
+```yaml
+              referenced_by_prices: "This price type is still used by one or more prices and cannot be deleted. Retire it instead."
+```
+
+- [ ] **Step 7: Migrate and run**
 
 ```bash
 bin/rake extension:test_app && bundle exec rspec spec/models/spree/price_columns_spec.rb
 ```
 
-Expected: PASS, 3 examples.
+Expected: PASS, 5 examples.
 
-- [ ] **Step 7: Commit**
+**Watch for a foreign key / truncation interaction.** This task adds the first foreign keys
+pointing at `solidus_advanced_pricing_price_types`. `solidus_dev_support` runs
+`DatabaseCleaner.clean_with :truncation` before the suite and per `:js` example. If truncation
+ordering or FK enforcement causes errors, report what you see rather than dropping the foreign
+keys — they are the thing keeping `price_type_id NOT NULL` honest.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add -A
