@@ -147,20 +147,17 @@ FactoryBot.define do
 end
 ```
 
-- [ ] **Step 2: Load it from the factories entrypoint**
+- [ ] **Step 2: Leave `factories.rb` alone**
 
-Replace the contents of `lib/solidus_advanced_pricing/testing_support/factories.rb`:
+Do NOT modify `lib/solidus_advanced_pricing/testing_support/factories.rb`. The generated
+`FactoryBot.define do end` is correct as-is.
 
-```ruby
-# frozen_string_literal: true
-
-require 'spree/testing_support/factory_bot'
-
-Spree::TestingSupport::FactoryBot.definition_file_paths.unshift(
-  File.expand_path('factories', __dir__)
-)
-Spree::TestingSupport::FactoryBot.add_paths_and_load!
-```
+`spec/spec_helper.rb` already calls
+`SolidusDevSupport::TestingSupport::Factories.load_for(SolidusAdvancedPricing::Engine)`, and
+`load_for` globs `lib/**/testing_support/factories{,.rb}` — registering BOTH the `factories.rb`
+file and the `factories/` directory as FactoryBot definition paths. Adding a manual
+`definition_file_paths.unshift` would load `price_type_factory.rb` twice and raise a duplicate
+factory registration error.
 
 - [ ] **Step 3: Commit**
 
