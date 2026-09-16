@@ -10,6 +10,25 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-14-solidus-advanced-pricing-design.md`
 
+## Standing rules for every task
+
+1. **Run `bundle exec rubocop -a` before every commit, and make sure `bundle exec rubocop`
+   reports no offenses.** CI runs `bundle exec rubocop -ESP` on every pull request, so a lint
+   failure is a red build. Note that `solidus_dev_support`'s RuboCop config prefers
+   **double-quoted** strings, while its generator templates — and the code samples throughout
+   this plan — use single quotes. Write the code as given, then let `rubocop -a` normalize it.
+   Do not hand-convert and do not edit `.rubocop.yml` to dodge this.
+2. **Run the whole suite (`bundle exec rspec`), not just the task's own spec file**, before
+   committing. Several tasks change shared behavior — seeded price types, the registered price
+   selector, `default_price_attributes` — in ways that surface as failures in earlier specs.
+3. **When a task's change breaks an earlier expectation, fix the expectation, not the
+   implementation** — unless the failure reveals the implementation is actually wrong, in which
+   case stop and escalate rather than deciding alone.
+4. **Never weaken an assertion to force green.** If the only way to pass is to assert less,
+   that is a signal to escalate.
+5. Commit messages take no attribution lines, "Generated with" footers, or Co-Authored-By
+   trailers.
+
 **Phases** — each ends with working, tested software:
 
 | Phase | Tasks | Delivers |
