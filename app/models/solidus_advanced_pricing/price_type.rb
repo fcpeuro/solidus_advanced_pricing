@@ -7,7 +7,7 @@ module SolidusAdvancedPricing
   class PriceType < Spree::Base
     include Spree::SoftDeletable
 
-    self.table_name = 'solidus_advanced_pricing_price_types'
+    self.table_name = "solidus_advanced_pricing_price_types"
 
     # NOTE: `has_many :prices` is deliberately NOT declared here. `spree_prices`
     # has no `price_type_id` column and `Spree::Price` has no `price_type`
@@ -23,16 +23,16 @@ module SolidusAdvancedPricing
     # PostgreSQL, MySQL and SQLite alike. `case_sensitive: false` would have the
     # validator and the index disagree on PG/SQLite, letting `insert_all` create
     # two rows differing only in case.
-    validates :code, presence: true, uniqueness: { case_sensitive: true }
+    validates :code, presence: true, uniqueness: {case_sensitive: true}
 
     scope :ordered, -> { order(:position, :id) }
 
     SEEDS = [
-      { code: 'default',   name: 'Default',   position: 1, default: true },
-      { code: 'wholesale', name: 'Wholesale', position: 2, default: false },
-      { code: 'sale',      name: 'Sale',      position: 3, default: false },
-      { code: 'clearance', name: 'Clearance', position: 4, default: false },
-      { code: 'employee',  name: 'Employee',  position: 5, default: false }
+      {code: "default", name: "Default", position: 1, default: true},
+      {code: "wholesale", name: "Wholesale", position: 2, default: false},
+      {code: "sale", name: "Sale", position: 3, default: false},
+      {code: "clearance", name: "Clearance", position: 4, default: false},
+      {code: "employee", name: "Employee", position: 5, default: false}
     ].freeze
 
     # Idempotent. Used by the test suite and available to stores for re-seeding.

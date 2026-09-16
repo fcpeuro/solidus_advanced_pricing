@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'solidus_core'
-require 'solidus_support'
+require "solidus_core"
+require "solidus_support"
 
 module SolidusAdvancedPricing
   class Engine < Rails::Engine
@@ -9,7 +9,7 @@ module SolidusAdvancedPricing
 
     isolate_namespace ::Spree
 
-    engine_name 'solidus_advanced_pricing'
+    engine_name "solidus_advanced_pricing"
 
     # use rspec for tests
     config.generators do |g|
