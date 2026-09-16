@@ -504,6 +504,9 @@ Create `spec/migrations/seed_price_types_spec.rb`:
 require 'spec_helper'
 
 RSpec.describe 'seeded price types' do
+  # These assert the seeds are present and correctly shaped. Note they pass via
+  # the `before` hook in spec_helper as well as via the migration; the migration
+  # itself is exercised by running `bin/rake extension:test_app`.
   it 'ships five types in order' do
     expect(SolidusAdvancedPricing::PriceType.ordered.pluck(:code)).to eq(
       %w[default wholesale sale clearance employee]
@@ -579,7 +582,59 @@ raw `execute("INSERT INTO ... (default) ...")`, so ActiveRecord quotes the ident
 The five positions are distinct on purpose: `scope :ordered` falls back to `id` on ties, and
 the seed order is what admins see in every dropdown.
 
-- [ ] **Step 4: Migrate and run the test**
+- [ ] **Step 4: Add `PriceType.seed!` and call it from the test suite**
+
+**This step is not optional — without it every later task breaks.**
+`solidus_dev_support`'s rails_helper does `config.before(:suite) { DatabaseCleaner.clean_with :truncation }`,
+which truncates the migration-seeded rows before the first example ever runs. Specs tagged `:js`
+also truncate per-example. So migration seeding alone leaves
+`SolidusAdvancedPricing::PriceType.find_by(code: 'default')` returning `nil` throughout the suite,
+which breaks this task's spec, Task 7's `assign_default_price_type` (NOT NULL violation), Task 10's
+`default_price_attributes` pinning, and Task 17's backward-compatibility specs.
+
+Add to `app/models/solidus_advanced_pricing/price_type.rb`:
+
+```ruby
+    SEEDS = [
+      { code: 'default',   name: 'Default',   position: 1, default: true },
+      { code: 'wholesale', name: 'Wholesale', position: 2, default: false },
+      { code: 'sale',      name: 'Sale',      position: 3, default: false },
+      { code: 'clearance', name: 'Clearance', position: 4, default: false },
+      { code: 'employee',  name: 'Employee',  position: 5, default: false }
+    ].freeze
+
+    # Idempotent. Used by the test suite and available to stores for re-seeding.
+    # The migration deliberately does NOT call this — a historical migration must
+    # not depend on current app code — so the two lists may drift, which is fine:
+    # the migration is history, this is the present.
+    def self.seed!
+      SEEDS.each do |attrs|
+        with_discarded.find_or_create_by!(code: attrs[:code]) do |price_type|
+          price_type.name = attrs[:name]
+          price_type.position = attrs[:position]
+          price_type.default = attrs[:default]
+        end
+      end
+    end
+```
+
+`with_discarded` matters: codes stay reserved after a discard, so a `kept`-scoped lookup would
+try to create a duplicate and hit the unique index.
+
+Then in `spec/spec_helper.rb`, inside the `RSpec.configure` block:
+
+```ruby
+  config.before do
+    SolidusAdvancedPricing::PriceType.seed!
+  end
+```
+
+`before(:each)` rather than `before(:suite)`: the `around(:each)` hook wraps each example in
+`DatabaseCleaner.cleaning`, so seeding here runs inside the transaction and is re-established for
+every example, including truncating `:js` ones. It is five `find_or_create_by` calls per example —
+cheap, and it makes every spec deterministic.
+
+- [ ] **Step 5: Migrate and run the test**
 
 ```bash
 bin/rake extension:test_app && bundle exec rspec spec/migrations/seed_price_types_spec.rb
@@ -587,7 +642,25 @@ bin/rake extension:test_app && bundle exec rspec spec/migrations/seed_price_type
 
 Expected: PASS, 2 examples.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Re-check the Task 3 specs**
+
+```bash
+bundle exec rspec spec/models/solidus_advanced_pricing/price_type_spec.rb
+```
+
+Two Task 3 examples assume an unseeded table and will now fail. Fix the **expectations**, not the
+implementation:
+
+- `'promotes the only type to default automatically'` — a default now always exists, so nothing
+  auto-promotes. Change it to assert that a new type created alongside the seeds is NOT default:
+  `expect(create(:price_type).reload).not_to be_default`
+- `'.default returns nil when the table is empty'` — delete it and replace with
+  `it('returns the seeded default') { expect(described_class.default.code).to eq('default') }`
+
+Also check `.ordered`: the seeds occupy positions 1–5, so that example must use positions above 5
+or scope itself to the records it creates.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add -A
