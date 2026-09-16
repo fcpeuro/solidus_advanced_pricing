@@ -27,6 +27,28 @@ module SolidusAdvancedPricing
 
     scope :ordered, -> { order(:position, :id) }
 
+    SEEDS = [
+      { code: 'default',   name: 'Default',   position: 1, default: true },
+      { code: 'wholesale', name: 'Wholesale', position: 2, default: false },
+      { code: 'sale',      name: 'Sale',      position: 3, default: false },
+      { code: 'clearance', name: 'Clearance', position: 4, default: false },
+      { code: 'employee',  name: 'Employee',  position: 5, default: false }
+    ].freeze
+
+    # Idempotent. Used by the test suite and available to stores for re-seeding.
+    # The migration deliberately does NOT call this — a historical migration must
+    # not depend on current app code — so the two lists may drift, which is fine:
+    # the migration is history, this is the present.
+    def self.seed!
+      SEEDS.each do |attrs|
+        with_discarded.find_or_create_by!(code: attrs[:code]) do |price_type|
+          price_type.name = attrs[:name]
+          price_type.position = attrs[:position]
+          price_type.default = attrs[:default]
+        end
+      end
+    end
+
     def self.default
       find_by(default: true)
     end

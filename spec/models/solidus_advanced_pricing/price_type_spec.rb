@@ -10,8 +10,8 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
   end
 
   it 'requires a unique code' do
-    create(:price_type, code: 'wholesale')
-    duplicate = described_class.new(name: 'Other', code: 'wholesale')
+    create(:price_type, code: 'promo')
+    duplicate = described_class.new(name: 'Other', code: 'promo')
     expect(duplicate).not_to be_valid
     expect(duplicate.errors[:code]).to be_present
   end
@@ -30,12 +30,12 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
   end
 
   it 'normalizes the code to lowercase' do
-    expect(create(:price_type, code: '  Wholesale  ').code).to eq('wholesale')
+    expect(create(:price_type, code: '  Bespoke  ').code).to eq('bespoke')
   end
 
   it 'rejects a code differing only in case' do
-    create(:price_type, code: 'sale')
-    expect(described_class.new(name: 'Other', code: 'SALE')).not_to be_valid
+    create(:price_type, code: 'bogo')
+    expect(described_class.new(name: 'Other', code: 'BOGO')).not_to be_valid
   end
 
   it "keeps a discarded type's code reserved" do
@@ -50,8 +50,8 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
     expect(described_class.where(default: true)).to contain_exactly(second)
   end
 
-  it 'promotes the only type to default automatically' do
-    expect(create(:price_type).reload).to be_default
+  it 'does not promote a new type to default when a default already exists' do
+    expect(create(:price_type).reload).not_to be_default
   end
 
   describe '.default' do
@@ -60,8 +60,8 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
       expect(described_class.default).to eq(default_type)
     end
 
-    it 'returns nil when the table is empty' do
-      expect(described_class.default).to be_nil
+    it 'returns the seeded default' do
+      expect(described_class.default.code).to eq('default')
     end
   end
 
@@ -69,7 +69,7 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
     it 'orders by position then id' do
       second = create(:price_type, position: 2)
       first = create(:price_type, position: 1)
-      expect(described_class.ordered.to_a).to eq([first, second])
+      expect(described_class.where(id: [first.id, second.id]).ordered.to_a).to eq([first, second])
     end
   end
 
@@ -78,7 +78,7 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
   end
 
   describe 'the default type' do
-    let!(:default_type) { create(:price_type, code: 'default', default: true) }
+    let(:default_type) { described_class.find_by(code: 'default') }
 
     it 'cannot be discarded' do
       expect(default_type.discard).to be(false)
