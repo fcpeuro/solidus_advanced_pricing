@@ -11,3 +11,7 @@ en:
             base:
               cannot_discard_default: "The default price type cannot be deleted."
               referenced_by_prices: "This price type is still used by one or more prices and cannot be deleted. Retire it instead."
+        spree/price:
+          attributes:
+            valid_to:
+              must_be_after_valid_from: "must be after the valid from date"
