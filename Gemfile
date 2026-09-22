@@ -23,6 +23,11 @@ else
   gem "solidus_frontend", github: "solidusio/solidus", branch: branch
 end
 
+# solidus_dev_support pins simplecov-cobertura "~> 2.1", whose REXML-based
+# formatter raises "Malformed XML: No root element" on rexml 3.4.x. Only bites
+# when CODECOV_COVERAGE_PATH is set, i.e. in CI.
+gem "rexml", "< 3.4"
+
 rails_version = ENV.fetch("RAILS_VERSION", "7.0")
 gem "rails", "~> #{rails_version}"
 
