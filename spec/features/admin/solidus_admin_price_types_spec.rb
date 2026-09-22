@@ -6,7 +6,7 @@ RSpec.feature "price types in the new admin" do
   stub_authorization!
 
   before do
-    skip "solidus_admin not available" unless SolidusSupport.admin_available?
+    skip "needs SolidusAdmin::ResourcesController (Solidus 4.5+)" unless defined?(SolidusAdmin::ResourcesController)
   end
 
   scenario "listing the seeded types" do

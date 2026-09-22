@@ -8,7 +8,7 @@ RSpec.describe "solidus_admin price types menu item" do
   # solidus_admin ships from Solidus 4.3; on older legs of the CI matrix the
   # engine initializer correctly registers nothing.
   before do
-    skip "solidus_admin not available" unless SolidusSupport.admin_available?
+    skip "needs SolidusAdmin::ResourcesController (Solidus 4.5+)" unless defined?(SolidusAdmin::ResourcesController)
   end
 
   it "is registered once" do

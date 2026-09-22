@@ -185,6 +185,10 @@ key. The default of 60 seconds bounds how stale a validity-window transition can
 (`SolidusAdmin::PriceTypes::Index::Component`, at `solidus_admin.price_types_path`),
 linked from the main navigation (registered via `SolidusAdmin::Config.menu_items`
 in `lib/solidus_advanced_pricing/engine.rb`) whenever `solidus_admin` is mounted.
+This half requires **Solidus 4.5 or newer** — it inherits from
+`SolidusAdmin::ResourcesController`, which does not exist in 4.3 or 4.4, so the route,
+the menu entry and the component are all skipped below that version. Everything else in
+this gem, including the full legacy backend, works from Solidus 4.0.
 Its rows link back to the legacy backend for edit/new; per-variant price management
 stays entirely in the legacy backend. This is deliberate: upstream Solidus's new
 admin has no prices screen of its own yet, and building one here would mean guessing

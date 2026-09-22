@@ -7,10 +7,10 @@ branch = ENV.fetch("SOLIDUS_BRANCH", "main")
 gem "solidus", github: "solidusio/solidus", branch: branch
 gem "solidus_backend", github: "solidusio/solidus", branch: branch, glob: "backend/*.gemspec"
 gem "solidus_api", github: "solidusio/solidus", branch: branch, glob: "api/*.gemspec"
-# solidus_admin only exists from Solidus 4.3; the v4.1/v4.2 legs of the CI matrix
-# have no admin/*.gemspec to resolve. Lexical compare matches the solidus_frontend
-# idiom below and breaks at v4.10, which Solidus has not reached.
-if branch == "main" || branch >= "v4.3"
+# This gem's solidus_admin support needs SolidusAdmin::ResourcesController, added
+# in Solidus 4.5 (solidus_admin itself ships from 4.3). Lexical compare matches the
+# solidus_frontend idiom below and breaks at v4.10, which Solidus has not reached.
+if branch == "main" || branch >= "v4.5"
   gem "solidus_admin", github: "solidusio/solidus", branch: branch, glob: "admin/*.gemspec"
 end
 

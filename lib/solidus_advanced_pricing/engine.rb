@@ -23,7 +23,11 @@ module SolidusAdvancedPricing
     # A decorator would re-append this on every `to_prepare` reload; an
     # initializer runs once at boot.
     initializer "solidus_advanced_pricing.menu_items" do
+      # Version check, not a constant check: at initializer time solidus_admin's
+      # Zeitwerk autoloads are not set up yet. Our route needs
+      # SolidusAdmin::ResourcesController, added in Solidus 4.5.
       next unless defined?(::SolidusAdmin::Config)
+      next if ::Spree.solidus_gem_version < ::Gem::Version.new("4.5")
       next if ::SolidusAdmin::Config.menu_items.any? { |item| item[:key].to_s == "price_types" }
 
       ::SolidusAdmin::Config.menu_items << {
