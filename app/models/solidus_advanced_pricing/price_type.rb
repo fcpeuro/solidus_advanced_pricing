@@ -12,6 +12,10 @@ module SolidusAdvancedPricing
 
     self.table_name = "solidus_advanced_pricing_price_types"
 
+    # Needed for the solidus_admin index search box (name_or_code_cont); Ransack
+    # denies any attribute not explicitly allowed here.
+    self.allowed_ransackable_attributes = %w[name code]
+
     has_many :prices,
       class_name: "::Spree::Price",
       foreign_key: :price_type_id,

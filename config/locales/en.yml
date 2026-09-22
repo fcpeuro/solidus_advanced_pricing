@@ -8,6 +8,11 @@ en:
     role_hint: "Leave blank for all customers. A price type name alone grants no access control — an employee-only price needs this field set."
     admin_notes_hint: "Internal only. Never shown to customers."
     validity: "Validity"
+  solidus_admin:
+    price_types:
+      title: "Price Types"
+      destroy:
+        success: "Price types were successfully removed."
   activerecord:
     models:
       solidus_advanced_pricing/price_type:
