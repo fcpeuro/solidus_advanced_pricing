@@ -1536,15 +1536,21 @@ RSpec.describe SolidusAdvancedPricing::PricingOptions, 'cache keys' do
   end
 
   it 'omits the time component when granularity is 0' do
-    Spree::Config.advanced_pricing_cache_granularity = 0
-    a = described_class.new(at: now, customer_role_ids: [])
-    b = described_class.new(at: now + 1.year, customer_role_ids: [])
-    expect(a.cache_key).to eq(b.cache_key)
-  ensure
-    Spree::Config.advanced_pricing_cache_granularity = 60
+    with_unfrozen_spree_preference_store do
+      Spree::Config.advanced_pricing_cache_granularity = 0
+      a = described_class.new(at: now, customer_role_ids: [])
+      b = described_class.new(at: now + 1.year, customer_role_ids: [])
+      expect(a.cache_key).to eq(b.cache_key)
+    end
   end
 end
 ```
+
+**Writing to `Spree::Config` in a spec needs `with_unfrozen_spree_preference_store`.**
+`solidus_dev_support`'s rails_helper calls `Spree::TestingSupport::Preferences.freeze_preferences`
+in `before(:suite)`, and the per-example reset that used to undo it was removed for Solidus >= 2.9.
+A bare assignment raises `FrozenError: can't modify frozen Hash`. Reading a preference needs no
+wrapper — only the example above, which flips the value, does.
 
 - [ ] **Step 2: Run and watch it fail**
 
