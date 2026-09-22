@@ -20,7 +20,9 @@ jobs:
     name: Solidus ${{ matrix.solidus-branch }}, Rails ${{ matrix.rails-version }} and Ruby ${{ matrix.ruby-version }} on ${{ matrix.database }}
     runs-on: ubuntu-24.04
     strategy:
-      fail-fast: true
+      # false so one bad cell reports the whole matrix instead of cancelling the other
+      # 44 jobs -- version-specific breakage was surfacing one cell per round trip.
+      fail-fast: false
       matrix:
         rails-version:
           - "7.0"
