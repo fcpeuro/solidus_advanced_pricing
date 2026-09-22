@@ -25,6 +25,7 @@ SolidusDevSupport::TestingSupport::Factories.load_for(SolidusAdvancedPricing::En
 require "db_query_matchers"
 
 RSpec.configure do |config|
+  config.include ActiveSupport::Testing::TimeHelpers
   config.infer_spec_type_from_file_location!
   config.use_transactional_fixtures = false
 

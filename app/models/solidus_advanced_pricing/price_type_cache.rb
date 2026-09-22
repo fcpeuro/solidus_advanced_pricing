@@ -15,8 +15,15 @@ module SolidusAdvancedPricing
         @default_id = PriceType.with_discarded.find_by(default: true)&.id
       end
 
+      def pricing_role_ids
+        return @pricing_role_ids if defined?(@pricing_role_ids)
+
+        @pricing_role_ids = ::Spree::Price.distinct.pluck(:role_id).compact
+      end
+
       def clear
         remove_instance_variable(:@default_id) if defined?(@default_id)
+        remove_instance_variable(:@pricing_role_ids) if defined?(@pricing_role_ids)
       end
     end
   end

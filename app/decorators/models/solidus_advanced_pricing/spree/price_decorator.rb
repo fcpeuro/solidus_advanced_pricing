@@ -42,6 +42,8 @@ module SolidusAdvancedPricing
         base.scope :for_price_type, ->(price_type) {
           where(price_type_id: price_type)
         }
+
+        base.after_commit { SolidusAdvancedPricing::PriceTypeCache.clear }
       end
 
       private
