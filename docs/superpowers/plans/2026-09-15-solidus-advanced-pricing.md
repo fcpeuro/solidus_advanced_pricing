@@ -12,6 +12,10 @@
 
 ## Standing rules for every task
 
+0. **Keep code comments to one or two lines.** A comment names the non-obvious constraint or
+   the bug being prevented, then stops. Reproduction steps, arithmetic, alternatives considered
+   and verification belong in the commit message, not above the method. Where this plan shows a
+   longer comment, trim it and move the detail into the commit body.
 1. **Run `bundle exec rubocop -a` before every commit, and make sure `bundle exec rubocop`
    reports no offenses.** CI runs `bundle exec rubocop -ESP` on every pull request, so a lint
    failure is a red build. Note that `solidus_dev_support`'s RuboCop config prefers
@@ -938,6 +942,7 @@ module SolidusAdvancedPricing
   module Spree
     module PriceDecorator
       def self.prepended(base)
+        # with_discarded: a price keeps its type after an admin retires it.
         base.belongs_to :price_type,
           -> { with_discarded },
           class_name: 'SolidusAdvancedPricing::PriceType',
@@ -952,8 +957,6 @@ module SolidusAdvancedPricing
 
       private
 
-      # A price with no explicit type belongs to the default type. Declared
-      # +with_discarded+ above so a price keeps its type after an admin retires it.
       def assign_default_price_type
         self.price_type_id ||= SolidusAdvancedPricing::PriceTypeCache.default_id
       end
@@ -975,11 +978,8 @@ Task 3 with the real association:
       foreign_key: :price_type_id,
       inverse_of: :price_type
 
-    # NOT `dependent: :restrict_with_error`: that check runs through the
-    # default-scoped association, which hides discarded prices. A type whose
-    # prices were all discarded would pass the check and then hit the foreign
-    # key on DELETE. Retirement is discard-only; hard destroy is blocked
-    # whenever any price — kept or discarded — still references the type.
+    # Not `dependent: :restrict_with_error` — that check is default-scoped and
+    # misses discarded prices, which then trip the FK on DELETE.
     before_destroy :prevent_destroying_referenced_type
 ```
 
