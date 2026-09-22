@@ -16,6 +16,14 @@
    the bug being prevented, then stops. Reproduction steps, arithmetic, alternatives considered
    and verification belong in the commit message, not above the method. Where this plan shows a
    longer comment, trim it and move the detail into the commit body.
+0.5. **Always root-qualify Solidus constants as `::Spree::...` inside
+   `module SolidusAdvancedPricing`.** The decorator directory
+   `app/decorators/models/solidus_advanced_pricing/spree/` makes Zeitwerk define an implicit
+   `SolidusAdvancedPricing::Spree` module, so a bare `Spree::Base` resolves to that sibling
+   namespace and raises `uninitialized constant SolidusAdvancedPricing::Spree::Base`. This
+   applies to every real constant reference; string forms like
+   `class_name: "Spree::Price"` are unaffected, because `constantize` resolves from `Object`
+   rather than lexical scope.
 1. **Run `bundle exec rubocop -a` before every commit, and make sure `bundle exec rubocop`
    reports no offenses.** CI runs `bundle exec rubocop -ESP` on every pull request, so a lint
    failure is a red build. Note that `solidus_dev_support`'s RuboCop config prefers
