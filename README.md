@@ -11,6 +11,35 @@ This gem is for prices that *are* a different amount. See
 [Relationship to solidus_promotions](#relationship-to-solidus_promotions) below if what
 you actually want is a discount.
 
+## Requirements
+
+- Solidus **4.5** or newer (`< 5`)
+- Rails 7.0–7.2
+- Ruby 3.1 or newer
+
+Tested on PostgreSQL, MySQL and SQLite.
+
+### Backporting to Solidus 4.0–4.4
+
+The 4.5 floor exists for one reason: the solidus_admin price types screen inherits from
+`SolidusAdmin::ResourcesController`, which was added in Solidus 4.5. Everything else —
+the model layer, price selection, the legacy backend, and the API — works from Solidus
+4.0.
+
+The seams for a backport are deliberately still in place:
+
+- `config/routes.rb` and `lib/solidus_advanced_pricing/engine.rb` each guard the
+  solidus_admin route and menu entry on `Spree.solidus_gem_version >= "4.5"`, so both
+  disable themselves on older versions rather than raising.
+- The `Gemfile` only installs `solidus_admin` when `SOLIDUS_BRANCH` is `main` or `v4.5+`.
+- `spec/features/admin/solidus_admin_price_types_spec.rb` and
+  `spec/lib/solidus_advanced_pricing/engine_spec.rb` skip when
+  `SolidusAdmin::ResourcesController` is undefined.
+
+So a backport is: lower the floor in the gemspec, add the older versions back to the CI
+matrix in `.github/workflows/test.yml`, and the solidus_admin half stays dormant below
+4.5 on its own. It was green on 4.1–4.4 that way before the floor was raised.
+
 ## Installation
 
 Add solidus_advanced_pricing to your Gemfile:
@@ -192,10 +221,8 @@ key. The default of 60 seconds bounds how stale a validity-window transition can
 (`SolidusAdmin::PriceTypes::Index::Component`, at `solidus_admin.price_types_path`),
 linked from the main navigation (registered via `SolidusAdmin::Config.menu_items`
 in `lib/solidus_advanced_pricing/engine.rb`) whenever `solidus_admin` is mounted.
-This half requires **Solidus 4.5 or newer** — it inherits from
-`SolidusAdmin::ResourcesController`, which does not exist in 4.3 or 4.4, so the route,
-the menu entry and the component are all skipped below that version. Everything else in
-this gem, including the full legacy backend, works from Solidus 4.0.
+It inherits from `SolidusAdmin::ResourcesController`, which is why the gem requires
+Solidus 4.5 (see Requirements).
 Its rows link back to the legacy backend for edit/new; per-variant price management
 stays entirely in the legacy backend. This is deliberate: upstream Solidus's new
 admin has no prices screen of its own yet, and building one here would mean guessing
