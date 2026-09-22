@@ -1,0 +1,2 @@
+<!-- insert_bottom "[data-hook='admin_product_price_form']" -->
+<%= render 'spree/admin/prices/advanced_fields', f: f %>

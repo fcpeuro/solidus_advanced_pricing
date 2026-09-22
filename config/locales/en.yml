@@ -3,7 +3,22 @@
 
 en:
   hello: Hello world
+  solidus_advanced_pricing:
+    all_customers: "All customers"
+    role_hint: "Leave blank for all customers. A price type name alone grants no access control — an employee-only price needs this field set."
+    admin_notes_hint: "Internal only. Never shown to customers."
   activerecord:
+    models:
+      solidus_advanced_pricing/price_type:
+        one: "Price Type"
+        other: "Price Types"
+    attributes:
+      spree/price:
+        price_type_id: "Price Type"
+        role_id: "Visible to role"
+        valid_from: "Valid from"
+        valid_to: "Valid to"
+        admin_notes: "Admin notes"
     errors:
       models:
         solidus_advanced_pricing/price_type:

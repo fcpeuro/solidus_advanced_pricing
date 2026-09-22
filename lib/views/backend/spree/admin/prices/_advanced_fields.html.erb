@@ -1,0 +1,46 @@
+<div data-hook="admin_product_price_advanced_fields">
+  <div class="col-4">
+    <%= f.field_container :price_type do %>
+      <%= f.label :price_type_id, SolidusAdvancedPricing::PriceType.model_name.human %>
+      <%= f.collection_select :price_type_id,
+                              SolidusAdvancedPricing::PriceType.ordered,
+                              :id, :name,
+                              {},
+                              { class: 'custom-select fullwidth' } %>
+    <% end %>
+  </div>
+
+  <div class="col-4">
+    <%= f.field_container :role do %>
+      <%= f.label :role_id, Spree::Role.model_name.human %>
+      <%= f.collection_select :role_id,
+                              Spree::Role.order(:name),
+                              :id, :name,
+                              { include_blank: t('solidus_advanced_pricing.all_customers') },
+                              { class: 'custom-select fullwidth' } %>
+      <span class="field-hint"><%= t('solidus_advanced_pricing.role_hint') %></span>
+    <% end %>
+  </div>
+
+  <div class="col-2">
+    <%= f.field_container :valid_from do %>
+      <%= f.label :valid_from %>
+      <%= f.text_field :valid_from, value: f.object.valid_from&.iso8601, class: 'fullwidth datepicker' %>
+    <% end %>
+  </div>
+
+  <div class="col-2">
+    <%= f.field_container :valid_to do %>
+      <%= f.label :valid_to %>
+      <%= f.text_field :valid_to, value: f.object.valid_to&.iso8601, class: 'fullwidth datepicker' %>
+    <% end %>
+  </div>
+
+  <div class="col-12">
+    <%= f.field_container :admin_notes do %>
+      <%= f.label :admin_notes %>
+      <%= f.text_area :admin_notes, rows: 2, class: 'fullwidth' %>
+      <span class="field-hint"><%= t('solidus_advanced_pricing.admin_notes_hint') %></span>
+    <% end %>
+  </div>
+</div>

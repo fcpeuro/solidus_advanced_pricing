@@ -2,6 +2,10 @@
 
 require "solidus_core"
 require "solidus_support"
+# Not auto-required by Bundler: `gemspec` in the Gemfile folds runtime deps
+# into a single pseudo-dependency, so Deface's ActionView hook never loads
+# unless something requires it explicitly.
+require "deface"
 
 module SolidusAdvancedPricing
   class Engine < Rails::Engine
