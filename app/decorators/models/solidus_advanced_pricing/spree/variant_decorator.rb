@@ -38,6 +38,14 @@ module SolidusAdvancedPricing
         price_of_type(nil, pricing_options)
       end
 
+      # A MAP-restricted variant may carry no untyped price at all; fall back so
+      # variant.price is never blank when some price exists.
+      def default_price
+        super || price_selector.price_for_options(
+          ::Spree::Config.default_pricing_options.with(price_type_id: :any)
+        )
+      end
+
       ::Spree::Variant.prepend self
     end
   end

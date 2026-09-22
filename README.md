@@ -68,6 +68,14 @@ price types (`wholesale`, `sale`, `clearance`, `employee`, `map`, `promotional`)
 pricing behavior changes until you start setting the new columns — see
 [Backward compatibility](#backward-compatibility).
 
+`map` (minimum advertised price) and MSRP are easy to confuse but behave oppositely
+under cheapest-wins. MAP is a price you are *required* to sell at, so it is a real
+selling price and will be selected — a MAP-restricted variant often has no untyped
+base price at all. MSRP (not seeded here; add your own type if you want one) is a
+suggested price items are typically never sold at; because it sits *above* the
+selling price, cheapest-wins never selects it, which makes it a natural compare-at
+value for `price_of_type`.
+
 ## What it adds to `Spree::Price`
 
 | Column | Type | Meaning |
@@ -174,6 +182,17 @@ windows and none is currently open, `variant.price` returns `nil` — the same t
 core does when no price matches at all, not an error. Keep at least one open-ended
 (`valid_from`/`valid_to` both blank) base price per variant if you don't want a
 variant to become unpriced outside its scheduled windows.
+
+A second consequence: when a variant has no untyped base price at all (a MAP-only
+variant, for example), `variant.price` / `default_price` (and therefore
+`display_price`, `display_amount` and `has_default_price?`) fall back to the
+cheapest eligible typed price instead of returning nothing, so the admin never
+shows a blank price field. The fallback only relaxes the type filter — currency,
+the validity window and role visibility still apply, so a variant whose only typed
+price is expired or role-targeted still comes back unpriced. `base_price`
+deliberately does **not** fall back: it is the compare-at value shown next to the
+current price, and if it silently became equal to the current price there would
+be nothing left to strike through.
 
 ## Caching
 
