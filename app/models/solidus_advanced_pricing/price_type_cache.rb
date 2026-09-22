@@ -24,9 +24,21 @@ module SolidusAdvancedPricing
         positions.fetch(price_type_id, 0)
       end
 
+      # code => id. Handful of rows that change almost never.
+      def ids_by_code
+        return @ids_by_code if defined?(@ids_by_code)
+
+        @ids_by_code = PriceType.with_discarded.pluck(:code, :id).to_h
+      end
+
+      def id_for(code)
+        ids_by_code[code.to_s]
+      end
+
       def clear
         remove_instance_variable(:@pricing_role_ids) if defined?(@pricing_role_ids)
         remove_instance_variable(:@positions) if defined?(@positions)
+        remove_instance_variable(:@ids_by_code) if defined?(@ids_by_code)
       end
     end
   end

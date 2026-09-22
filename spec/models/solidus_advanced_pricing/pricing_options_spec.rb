@@ -83,4 +83,27 @@ RSpec.describe SolidusAdvancedPricing::PricingOptions do
   it "keeps Spree::Price.with_default_attributes valid" do
     expect { ::Spree::Price.with_default_attributes.to_a }.not_to raise_error
   end
+
+  describe "#with" do
+    it "applies the given override" do
+      options = described_class.new(currency: "USD")
+      derived = options.with(price_type_id: 5)
+      expect(derived.desired_attributes[:price_type_id]).to eq(5)
+    end
+
+    it "preserves at and customer_role_ids, which live outside desired_attributes" do
+      at = Time.zone.parse("2026-01-01 12:00:00")
+      options = described_class.new(at: at, customer_role_ids: [7, 9])
+      derived = options.with(price_type_id: 5)
+      expect(derived.at).to eq(at)
+      expect(derived.customer_role_ids).to eq([7, 9])
+    end
+
+    it "preserves currency and country_iso" do
+      options = described_class.new(currency: "EUR", country_iso: "DE")
+      derived = options.with(price_type_id: 5)
+      expect(derived.desired_attributes[:currency]).to eq("EUR")
+      expect(derived.desired_attributes[:country_iso]).to eq("DE")
+    end
+  end
 end

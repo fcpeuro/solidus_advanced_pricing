@@ -25,6 +25,19 @@ module SolidusAdvancedPricing
         end
       end
 
+      # nil means the untyped base price. Accepts a PriceType, an id, or a code.
+      def price_of_type(price_type, pricing_options = ::Spree::Config.default_pricing_options)
+        price_selector.price_for_options(
+          pricing_options.with(price_type_id: SolidusAdvancedPricing.resolve_price_type_id(price_type))
+        )
+      end
+
+      # The untyped price a sale or role-targeted price undercuts -- the value to
+      # strike through in a storefront.
+      def base_price(pricing_options = ::Spree::Config.default_pricing_options)
+        price_of_type(nil, pricing_options)
+      end
+
       ::Spree::Variant.prepend self
     end
   end

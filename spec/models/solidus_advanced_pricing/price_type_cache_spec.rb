@@ -22,4 +22,27 @@ RSpec.describe SolidusAdvancedPricing::PriceTypeCache do
       expect(described_class.position_for(-1)).to eq(0)
     end
   end
+
+  describe ".id_for" do
+    it "resolves a code to its id" do
+      sale = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
+      expect(described_class.id_for("sale")).to eq(sale.id)
+    end
+
+    it "accepts a symbol" do
+      sale = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
+      expect(described_class.id_for(:sale)).to eq(sale.id)
+    end
+
+    it "still resolves a retired type's code" do
+      sale = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
+      sale.discard
+      described_class.clear
+      expect(described_class.id_for("sale")).to eq(sale.id)
+    end
+
+    it "returns nil for an unknown code" do
+      expect(described_class.id_for("not-a-real-code")).to be_nil
+    end
+  end
 end

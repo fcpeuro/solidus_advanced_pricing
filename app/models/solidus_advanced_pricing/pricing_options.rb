@@ -80,6 +80,14 @@ module SolidusAdvancedPricing
       arguments
     end
 
+    # at and customer_role_ids live outside desired_attributes, so they have to be
+    # carried explicitly or a derived lookup silently becomes an admin one.
+    def with(**overrides)
+      self.class.new(
+        desired_attributes.merge(at: at, customer_role_ids: customer_role_ids).merge(overrides)
+      )
+    end
+
     private
 
     def roles_cache_component

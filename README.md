@@ -223,6 +223,30 @@ endpoint already serializes `price` and `display_price` through this gem's selec
 automatically, because the selector is registered globally via
 `Spree::Config.variant_price_selector_class`.
 
+## Storefront: compare-at (strikethrough) pricing
+
+`Spree::Variant#price_of_type` and `#base_price` fetch a specific typed price
+alongside the customer's normal price, so a storefront can render a struck-through
+"was" price next to an active sale:
+
+```erb
+<% base    = variant.base_price(current_pricing_options) %>
+<% current = variant.price_for_options(current_pricing_options) %>
+
+<% if base && current && base.amount > current.amount %>
+  <s><%= base.display_amount %></s>
+<% end %>
+<%= current.display_amount %>
+```
+
+`price_of_type` takes the same pricing options as `price_for_options`, so the
+comparison price respects the customer's currency, country, roles, and the current
+time — not an admin-context lookup. `nil` means the base (untyped) price, which is
+what `base_price` passes under the hood. `price_of_type` also accepts a `PriceType`
+record, an id, or a type code (e.g. `variant.price_of_type("sale", current_pricing_options)`);
+an unresolvable code raises `ArgumentError` rather than silently falling back to the
+base price.
+
 ## Known limitations
 
 - **Search and taxon filtering ignore validity windows.** `search_arguments`
