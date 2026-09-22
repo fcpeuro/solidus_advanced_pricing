@@ -68,6 +68,16 @@ module SolidusAdvancedPricing
       [super, roles_cache_component, time_cache_component].compact.join("/")
     end
 
+    # Core returns desired_attributes itself and mutates it, and can't know that
+    # price_type_id is NOT NULL, so a nil pin would match no rows at all.
+    def search_arguments
+      arguments = desired_attributes.dup
+      arguments[:country_iso] = [desired_attributes[:country_iso], nil].flatten.uniq
+      arguments[:role_id] = [nil, *customer_role_ids].uniq
+      arguments.delete(:price_type_id) if desired_attributes[:price_type_id].nil?
+      arguments
+    end
+
     private
 
     def roles_cache_component
