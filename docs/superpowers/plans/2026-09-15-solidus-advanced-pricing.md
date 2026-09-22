@@ -1323,10 +1323,14 @@ module SolidusAdvancedPricing
       )
     end
 
+    # price_type_id: nil means "any type competes". default_price_attributes pins it
+    # to the default type so the admin edits the base price; customers must not inherit
+    # that pin or a sale price could never be selected.
     def self.from_line_item(line_item)
       options = super
       new(
         options.desired_attributes.merge(
+          price_type_id: nil,
           customer_role_ids: pricing_relevant_role_ids(line_item.order&.user)
         )
       )
@@ -1336,6 +1340,7 @@ module SolidusAdvancedPricing
       options = super
       new(
         options.desired_attributes.merge(
+          price_type_id: nil,
           customer_role_ids: pricing_relevant_role_ids(context.try(:current_spree_user))
         )
       )
@@ -1663,8 +1668,26 @@ RSpec.describe SolidusAdvancedPricing::PriceSelector do
     variant.prices.each { |price| price.update!(valid_to: now - 1.day) }
     expect(selector.price_for_options(options)).to be_nil
   end
+
+  it 'lets every type compete when no type is pinned' do
+    sale_type = SolidusAdvancedPricing::PriceType.find_by(code: 'sale')
+    create(:price, variant: variant, amount: 70, price_type: sale_type)
+    expect(selector.price_for_options(options).amount).to eq(70)
+  end
+
+  it 'restricts to the pinned type when one is given' do
+    sale_type = SolidusAdvancedPricing::PriceType.find_by(code: 'sale')
+    default_type = SolidusAdvancedPricing::PriceType.find_by(code: 'default')
+    create(:price, variant: variant, amount: 70, price_type: sale_type)
+    result = selector.price_for_options(options(price_type_id: default_type.id))
+    expect(result.amount).to eq(100)
+  end
 end
 ```
+
+Those last two are the load-bearing pair. Together they encode the split the whole design rests
+on: the admin lookup pins `price_type_id` and sees the base price, while a customer lookup
+leaves it nil and lets a cheaper sale price win.
 
 - [ ] **Step 2: Run and watch it fail**
 
@@ -1703,12 +1726,21 @@ module SolidusAdvancedPricing
     private
 
     def eligible_prices(price_options)
+      wanted_type = price_options.desired_attributes[:price_type_id]
+
       variant.prices.select do |price|
         kept?(price) &&
           price.currency == price_options.currency &&
+          matches_type?(price, wanted_type) &&
           valid_at?(price, price_options.at) &&
           visible_to?(price, price_options.customer_role_ids)
       end
+    end
+
+    # nil means any type competes; a pinned id restricts to it. This is what keeps
+    # the admin's variant.price on the base price instead of a cheaper sale price.
+    def matches_type?(price, wanted_type)
+      wanted_type.nil? || price.price_type_id == wanted_type
     end
 
     def kept?(price)
