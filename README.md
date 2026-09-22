@@ -23,6 +23,19 @@ bin/rails generate solidus_advanced_pricing:install
 
 <!-- Explain how to use your extension once it's been installed. -->
 
+### Known limitations
+
+`Spree::Variant::PricingOptions#search_arguments` (overridden by
+`SolidusAdvancedPricing::PricingOptions`) is a plain equality hash passed to
+`Spree::Price.where(...)`. It cannot express the `valid_from`/`valid_to`
+validity window, so product search and taxon filtering (the two core call
+sites that use `search_arguments` directly) ignore price validity. A variant
+whose only price expired yesterday can still appear in search results, even
+though `Spree::Variant#price_for_options` correctly returns `nil` for it and
+`Spree::Variant.with_prices` (overridden by this gem) correctly excludes it
+from listings that call it. Closing this gap would require overriding the
+two core search call sites as well.
+
 ## Development
 
 ### Testing the extension
