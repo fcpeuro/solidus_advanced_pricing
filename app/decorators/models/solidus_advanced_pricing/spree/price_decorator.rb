@@ -4,15 +4,27 @@ module SolidusAdvancedPricing
   module Spree
     module PriceDecorator
       def self.prepended(base)
+        # solidus_support reloads decorators via bare `load` on every to_prepare;
+        # belongs_to would append a duplicate presence validator each time.
+        return if base.reflect_on_association(:price_type)
+
         # with_discarded: a price keeps its type after an admin retires it.
+        # optional: true so belongs_to never adds its own implicit presence
+        # validator, which would double up with the explicit one below on a
+        # host running belongs_to_required_by_default (load_defaults >= 5.0).
         base.belongs_to :price_type,
           -> { with_discarded },
           class_name: "SolidusAdvancedPricing::PriceType",
-          inverse_of: :prices
+          inverse_of: :prices,
+          optional: true
 
         base.belongs_to :role,
           class_name: "::Spree::Role",
           optional: true
+
+        # Explicit, so correctness does not depend on the host app's
+        # belongs_to_required_by_default default (false pre load_defaults 5.0).
+        base.validates :price_type, presence: true
 
         base.before_validation :assign_default_price_type
         base.validate :valid_to_after_valid_from

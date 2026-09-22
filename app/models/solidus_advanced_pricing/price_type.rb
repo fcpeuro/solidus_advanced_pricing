@@ -13,7 +13,7 @@ module SolidusAdvancedPricing
     self.table_name = "solidus_advanced_pricing_price_types"
 
     has_many :prices,
-      class_name: "Spree::Price",
+      class_name: "::Spree::Price",
       foreign_key: :price_type_id,
       inverse_of: :price_type
 
