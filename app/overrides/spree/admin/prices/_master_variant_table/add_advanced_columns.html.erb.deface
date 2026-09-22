@@ -1,0 +1,2 @@
+<!-- insert_before "[data-hook='prices_row'] td.actions" -->
+<%= render 'spree/admin/prices/advanced_columns', price: price %>
