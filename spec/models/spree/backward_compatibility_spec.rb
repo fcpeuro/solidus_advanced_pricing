@@ -17,12 +17,12 @@ RSpec.describe "backward compatibility with core pricing" do
     expect(variant).to have_default_price
   end
 
-  it "builds a default price with the default type and no role" do
+  it "builds a default price with no type and no role" do
     fresh = build(:variant)
     fresh.prices.destroy_all
     built = fresh.default_price_or_build
     expect(built.role_id).to be_nil
-    expect(built.price_type_id).to eq(SolidusAdvancedPricing::PriceType.find_by(code: "default").id)
+    expect(built.price_type_id).to be_nil
   end
 
   it "shows the admin the untargeted price, not a cheaper role-targeted one" do

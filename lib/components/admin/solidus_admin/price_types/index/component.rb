@@ -56,12 +56,6 @@ module SolidusAdmin
             {
               header: :position,
               data: ->(price_type) { price_type.position }
-            },
-            {
-              header: :default,
-              data: ->(price_type) do
-                price_type.default? ? component("ui/badge").yes : component("ui/badge").no
-              end
             }
           ]
         end

@@ -31,35 +31,33 @@ The generator:
   `SolidusAdvancedPricing::PriceSelector` as `Spree::Config.variant_price_selector_class`.
   This is what makes pricing type/role/validity-aware; without it the gem's columns exist
   but are never consulted.
-- Copies this gem's four migrations into your app.
+- Copies this gem's three migrations into your app.
 - Offers to run `bin/rails db:migrate` for you.
 
-Those migrations add the columns described below to `spree_prices`, seed five price
-types (`default`, `wholesale`, `sale`, `clearance`, `employee`), and backfill every
-existing price row onto the `default` type. Nothing about existing pricing behavior
-changes until you start setting the new columns — see
+Those migrations add the columns described below to `spree_prices` and seed four
+price types (`wholesale`, `sale`, `clearance`, `employee`). Nothing about existing
+pricing behavior changes until you start setting the new columns — see
 [Backward compatibility](#backward-compatibility).
 
 ## What it adds to `Spree::Price`
 
 | Column | Type | Meaning |
 |---|---|---|
-| `price_type_id` | bigint, not null | Belongs to `SolidusAdvancedPricing::PriceType`. Set automatically to the default type if left blank. |
+| `price_type_id` | bigint, nullable | Belongs to `SolidusAdvancedPricing::PriceType`. `nil` means the untyped base price — exactly as `role_id: nil` means every customer. |
 | `role_id` | integer, nullable | Belongs to `Spree::Role`. `nil` means visible to everyone, including guests. |
 | `valid_from` | datetime, nullable | Window opens here. `nil` means always open. |
 | `valid_to` | datetime, nullable | Window closes here, **exclusive** — a price is valid up to but not including this instant, so a window ending at midnight and the next one starting at midnight don't both match. `nil` means never closes. |
 | `admin_notes` | text, nullable | Internal only. Never shown to customers; see [API](#api) for exactly who can see it. |
 
-`price_type_id` is required and validated with `presence: true`; `role_id`,
-`valid_from` and `valid_to` are all optional. `valid_to` must be after `valid_from`
-when both are set.
+`price_type_id`, `role_id`, `valid_from` and `valid_to` are all optional. `valid_to`
+must be after `valid_from` when both are set.
 
 ## A price type is not access control
 
 **Setting a price's `price_type` to `employee` does nothing on its own.** Type and
 role are independent columns. A price typed `employee` with `role_id` left blank is
 visible to every customer, guests included — the name is just a label for the admin
-UI and reporting; it grants no eligibility by itself. Two of the five seeded types,
+UI and reporting; it grants no eligibility by itself. Two of the four seeded types,
 `wholesale` and `employee`, exist specifically to invite this mistake.
 
 If a price should only be available to a specific group, you must **also** set `role`:
@@ -115,16 +113,25 @@ would pay.
 
 ### Admin vs. customer lookups
 
-`SolidusAdvancedPricing::PricingOptions.default_price_attributes` pins
-`price_type_id` to the default type and `role_id` to `nil`. This is what
-`Spree::Variant#default_price_or_build` and the admin price form build against, so an
-admin always edits the base (`default`-typed, untargeted) price rather than
-accidentally landing on a cheaper sale or wholesale row.
+`price_type_id` has three meaningful states in a pricing lookup:
 
-Customer-facing lookups (`PricingOptions.from_line_item`, `.from_context`) clear that
-pin — `price_type_id` is `nil`, meaning every type competes — and populate
+| `price_type_id` | Meaning |
+|---|---|
+| `nil` | Untyped base prices only. |
+| an integer id | Only that type. |
+| `:any` | No type filter — every type competes. |
+
+`SolidusAdvancedPricing::PricingOptions.default_price_attributes` pins
+`price_type_id` to `nil` and `role_id` to `nil`. This is what
+`Spree::Variant#default_price_or_build` and the admin price form build against, so an
+admin always edits the untyped base price rather than accidentally landing on a
+cheaper sale or wholesale row.
+
+Customer-facing lookups (`PricingOptions.from_line_item`, `.from_context`) set
+`price_type_id` to `:any` instead — every type competes — and populate
 `customer_role_ids` from the current user's roles, so the full set of eligible prices
-is considered.
+is considered. `:any` is a selector-only sentinel; it never reaches `Spree::Price`
+as a column value (`PricingOptions#search_arguments` strips it before querying).
 
 ## Backward compatibility
 
@@ -235,11 +242,6 @@ automatically, because the selector is registered globally via
   hold several roles and will see every price targeted at any role they hold (the
   cheapest of them wins, per [how a price is chosen](#how-a-price-is-chosen)) — but a
   single price row can't itself target more than one role.
-- **The default price type id is memoized per process**
-  (`SolidusAdvancedPricing::PriceTypeCache.default_id`). If an admin changes which
-  type is marked default, other web and worker processes keep using the old default
-  until they restart, because the cache is only cleared by callbacks running in the
-  same process that made the change.
 
 ## Relationship to solidus_promotions
 

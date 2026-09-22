@@ -11,7 +11,7 @@ RSpec.describe SolidusAdvancedPricing::PriceSelector do
 
   def options(**overrides)
     SolidusAdvancedPricing::PricingOptions.new(
-      {currency: "USD", country_iso: nil, price_type_id: nil, at: now, customer_role_ids: []}.merge(overrides)
+      {currency: "USD", country_iso: nil, price_type_id: :any, at: now, customer_role_ids: []}.merge(overrides)
     )
   end
 
@@ -69,11 +69,12 @@ RSpec.describe SolidusAdvancedPricing::PriceSelector do
 
   it "restricts to the pinned type when one is given" do
     sale_type = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
-    default_type = SolidusAdvancedPricing::PriceType.find_by(code: "default")
+    wholesale_type = SolidusAdvancedPricing::PriceType.find_by(code: "wholesale")
     create(:price, variant: variant, amount: 70, price_type: sale_type)
+    create(:price, variant: variant, amount: 90, price_type: wholesale_type)
     variant.reload
-    result = selector.price_for_options(options(price_type_id: default_type.id))
-    expect(result.amount).to eq(100)
+    result = selector.price_for_options(options(price_type_id: wholesale_type.id))
+    expect(result.amount).to eq(90)
   end
 
   it "returns nil when candidates exist but none serve the requested country" do

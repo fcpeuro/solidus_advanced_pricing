@@ -5,13 +5,13 @@ module SolidusAdvancedPricing
     module PriceDecorator
       def self.prepended(base)
         # solidus_support reloads decorators via bare `load` on every to_prepare;
-        # belongs_to would append a duplicate presence validator each time.
+        # re-running this method would redefine the association and its
+        # callbacks (valid_to_after_valid_from, after_commit) each time.
         return if base.reflect_on_association(:price_type)
 
         # with_discarded: a price keeps its type after an admin retires it.
-        # optional: true so belongs_to never adds its own implicit presence
-        # validator, which would double up with the explicit one below on a
-        # host running belongs_to_required_by_default (load_defaults >= 5.0).
+        # optional: true because price_type_id nil is a real value here — the
+        # untyped base price — not a validation gap.
         base.belongs_to :price_type,
           -> { with_discarded },
           class_name: "SolidusAdvancedPricing::PriceType",
@@ -22,11 +22,6 @@ module SolidusAdvancedPricing
           class_name: "::Spree::Role",
           optional: true
 
-        # Explicit, so correctness does not depend on the host app's
-        # belongs_to_required_by_default default (false pre load_defaults 5.0).
-        base.validates :price_type, presence: true
-
-        base.before_validation :assign_default_price_type
         base.validate :valid_to_after_valid_from
 
         # valid_to is exclusive so a window ending at midnight and the next one starting at midnight do not both match.
@@ -47,10 +42,6 @@ module SolidusAdvancedPricing
       end
 
       private
-
-      def assign_default_price_type
-        self.price_type_id ||= SolidusAdvancedPricing::PriceTypeCache.default_id
-      end
 
       def valid_to_after_valid_from
         return if valid_from.blank? || valid_to.blank?

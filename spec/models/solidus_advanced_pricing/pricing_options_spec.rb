@@ -3,13 +3,11 @@
 require "spec_helper"
 
 RSpec.describe SolidusAdvancedPricing::PricingOptions do
-  let(:default_type_id) { SolidusAdvancedPricing::PriceType.find_by(code: "default").id }
-
   describe "defaults" do
     subject(:options) { described_class.new }
 
-    it "pins the price type to the default type" do
-      expect(options.desired_attributes[:price_type_id]).to eq(default_type_id)
+    it "pins the price type to nil, meaning untyped base prices only" do
+      expect(options.desired_attributes[:price_type_id]).to be_nil
     end
 
     it "pins role_id to nil so the admin sees the untargeted price" do
@@ -78,7 +76,7 @@ RSpec.describe SolidusAdvancedPricing::PricingOptions do
 
     it "clears the pinned price type so every type competes" do
       expect(described_class.from_context(double(current_spree_user: nil, current_store: store))
-        .desired_attributes[:price_type_id]).to be_nil
+        .desired_attributes[:price_type_id]).to eq(:any)
     end
   end
 

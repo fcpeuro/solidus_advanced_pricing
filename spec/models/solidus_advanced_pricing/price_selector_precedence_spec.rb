@@ -11,7 +11,7 @@ RSpec.describe SolidusAdvancedPricing::PriceSelector, "precedence" do
 
   def options(**overrides)
     SolidusAdvancedPricing::PricingOptions.new(
-      {currency: "USD", country_iso: nil, price_type_id: nil, at: now, customer_role_ids: []}.merge(overrides)
+      {currency: "USD", country_iso: nil, price_type_id: :any, at: now, customer_role_ids: []}.merge(overrides)
     )
   end
 

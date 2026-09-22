@@ -18,7 +18,7 @@ RSpec.describe "Prices API" do
       expect(response).to have_http_status(:ok)
       price = JSON.parse(response.body)["prices"].first
       expect(price).to include("price_type_code", "role_id", "valid_from", "valid_to")
-      expect(price["price_type_code"]).to eq("default")
+      expect(price["price_type_code"]).to be_nil
     end
 
     it "includes admin_notes for a user who can update the price" do

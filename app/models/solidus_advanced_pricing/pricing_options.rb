@@ -9,30 +9,31 @@ module SolidusAdvancedPricing
 
     def self.default_price_attributes
       super.merge(
-        price_type_id: SolidusAdvancedPricing::PriceTypeCache.default_id,
+        price_type_id: nil,
         role_id: nil
       )
     end
 
-    # price_type_id: nil means "any type competes". default_price_attributes pins it
-    # to the default type so the admin edits the base price; customers must not inherit
-    # that pin or a sale price could never be selected.
+    # price_type_id: :any means "no type filter, every type competes". nil, the
+    # default set by default_price_attributes above, means "untyped base prices
+    # only" and must not leak into a customer-facing lookup, or a sale price
+    # could never be selected.
     def self.from_line_item(line_item)
       options = super
       new(
         options.desired_attributes.merge(
-          price_type_id: nil,
+          price_type_id: :any,
           customer_role_ids: pricing_relevant_role_ids(line_item.order&.user)
         )
       )
     end
 
-    # price_type_id: nil means "any type competes" (see from_line_item above).
+    # price_type_id: :any (see from_line_item above).
     def self.from_context(context)
       options = super
       new(
         options.desired_attributes.merge(
-          price_type_id: nil,
+          price_type_id: :any,
           customer_role_ids: pricing_relevant_role_ids(context.try(:current_spree_user))
         )
       )
@@ -68,13 +69,14 @@ module SolidusAdvancedPricing
       [super, roles_cache_component, time_cache_component].compact.join("/")
     end
 
-    # Core returns desired_attributes itself and mutates it, and can't know that
-    # price_type_id is NOT NULL, so a nil pin would match no rows at all.
+    # nil is a real filter now (price_type_id IS NULL matches untyped base prices)
+    # and is kept; :any means no type filter at all, so it's stripped instead —
+    # it's a selector-only sentinel and not a column value `where` could use.
     def search_arguments
       arguments = desired_attributes.dup
       arguments[:country_iso] = [desired_attributes[:country_iso], nil].flatten.uniq
       arguments[:role_id] = [nil, *customer_role_ids].uniq
-      arguments.delete(:price_type_id) if desired_attributes[:price_type_id].nil?
+      arguments.delete(:price_type_id) if desired_attributes[:price_type_id] == :any
       arguments
     end
 

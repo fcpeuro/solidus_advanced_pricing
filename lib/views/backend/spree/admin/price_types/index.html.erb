@@ -12,7 +12,6 @@
       <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:name) %></th>
       <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:code) %></th>
       <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:position) %></th>
-      <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:default) %></th>
       <th class="actions"></th>
     </tr>
   </thead>
@@ -22,10 +21,9 @@
         <td><%= price_type.name %></td>
         <td><%= price_type.code %></td>
         <td><%= price_type.position %></td>
-        <td><%= price_type.default? ? t('spree.say_yes') : t('spree.say_no') %></td>
         <td class="actions">
           <%= link_to_edit price_type, no_text: true %>
-          <%= link_to_delete price_type, no_text: true unless price_type.default? %>
+          <%= link_to_delete price_type, no_text: true %>
         </td>
       </tr>
     <% end %>

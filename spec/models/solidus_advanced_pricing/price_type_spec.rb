@@ -43,28 +43,6 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
     expect(described_class.new(name: "Again", code: "retired")).not_to be_valid
   end
 
-  it "allows only one default at a time" do
-    first = create(:price_type, :default)
-    second = create(:price_type, :default)
-    expect(first.reload).not_to be_default
-    expect(described_class.where(default: true)).to contain_exactly(second)
-  end
-
-  it "does not promote a new type to default when a default already exists" do
-    expect(create(:price_type).reload).not_to be_default
-  end
-
-  describe ".default" do
-    it "returns the flagged type" do
-      default_type = create(:price_type, :default)
-      expect(described_class.default).to eq(default_type)
-    end
-
-    it "returns the seeded default" do
-      expect(described_class.default.code).to eq("default")
-    end
-  end
-
   describe ".ordered" do
     it "orders by position then id" do
       second = create(:price_type, position: 2)
@@ -75,25 +53,5 @@ RSpec.describe SolidusAdvancedPricing::PriceType do
 
   it "uses its name as its label" do
     expect(create(:price_type, name: "Wholesale").to_s).to eq("Wholesale")
-  end
-
-  describe "the default type" do
-    let(:default_type) { described_class.find_by(code: "default") }
-
-    it "cannot be discarded" do
-      expect(default_type.discard).to be(false)
-      expect(default_type.errors[:base]).to be_present
-      expect(default_type.reload).to be_kept
-    end
-
-    it "re-promotes itself rather than leaving the store with no default" do
-      default_type.update!(default: false)
-      expect(default_type.reload).to be_default
-    end
-
-    it "steps down when another type is made default" do
-      create(:price_type, code: "other", default: true)
-      expect(default_type.reload).not_to be_default
-    end
   end
 end

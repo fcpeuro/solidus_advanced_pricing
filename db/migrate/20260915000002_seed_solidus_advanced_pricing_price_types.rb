@@ -2,11 +2,10 @@
 
 class SeedSolidusAdvancedPricingPriceTypes < ActiveRecord::Migration[7.0]
   SEEDS = [
-    {code: "default", name: "Default", position: 1, default: true},
-    {code: "wholesale", name: "Wholesale", position: 2, default: false},
-    {code: "sale", name: "Sale", position: 3, default: false},
-    {code: "clearance", name: "Clearance", position: 4, default: false},
-    {code: "employee", name: "Employee", position: 5, default: false}
+    {code: "wholesale", name: "Wholesale", position: 1},
+    {code: "sale", name: "Sale", position: 2},
+    {code: "clearance", name: "Clearance", position: 3},
+    {code: "employee", name: "Employee", position: 4}
   ].freeze
 
   def up

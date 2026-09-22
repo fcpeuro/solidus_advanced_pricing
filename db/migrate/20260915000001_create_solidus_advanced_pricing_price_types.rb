@@ -6,7 +6,6 @@ class CreateSolidusAdvancedPricingPriceTypes < ActiveRecord::Migration[7.0]
       t.string :name, null: false
       t.string :code, null: false
       t.integer :position, null: false, default: 0
-      t.boolean :default, null: false, default: false
       t.datetime :deleted_at
       t.timestamps
     end

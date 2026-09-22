@@ -14,7 +14,7 @@ module Spree
       end
 
       def permitted_resource_params
-        params.require(:price_type).permit(:name, :code, :position, :default)
+        params.require(:price_type).permit(:name, :code, :position)
       end
 
       # ResourceController derives these from model_class.model_name, which for a

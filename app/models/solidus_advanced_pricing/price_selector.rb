@@ -33,10 +33,12 @@ module SolidusAdvancedPricing
       variant.discarded? || price.kept?
     end
 
-    # nil means any type competes; a pinned id restricts to it. This keeps the
-    # admin's variant.price on the base price instead of a cheaper sale price.
+    # nil = untyped base prices only (the admin's view); :any = every type competes
+    # (a customer's view); an id = that type only.
     def matches_type?(price, wanted_type)
-      wanted_type.nil? || price.price_type_id == wanted_type
+      return true if wanted_type == :any
+
+      price.price_type_id == wanted_type
     end
 
     def valid_at?(price, time)

@@ -26,8 +26,6 @@ module SolidusAdvancedPricing
     before_destroy :prevent_destroying_referenced_type
 
     before_validation :normalize_code
-    before_save :ensure_default_exists_and_is_unique
-    before_discard :prevent_discarding_default
 
     validates :name, presence: true
     # Codes are normalized to lowercase so a plain unique index IS the rule on
@@ -39,11 +37,10 @@ module SolidusAdvancedPricing
     scope :ordered, -> { order(:position, :id) }
 
     SEEDS = [
-      {code: "default", name: "Default", position: 1, default: true},
-      {code: "wholesale", name: "Wholesale", position: 2, default: false},
-      {code: "sale", name: "Sale", position: 3, default: false},
-      {code: "clearance", name: "Clearance", position: 4, default: false},
-      {code: "employee", name: "Employee", position: 5, default: false}
+      {code: "wholesale", name: "Wholesale", position: 1},
+      {code: "sale", name: "Sale", position: 2},
+      {code: "clearance", name: "Clearance", position: 3},
+      {code: "employee", name: "Employee", position: 4}
     ].freeze
 
     # Idempotent. Used by the test suite and available to stores for re-seeding.
@@ -55,13 +52,8 @@ module SolidusAdvancedPricing
         with_discarded.find_or_create_by!(code: attrs[:code]) do |price_type|
           price_type.name = attrs[:name]
           price_type.position = attrs[:position]
-          price_type.default = attrs[:default]
         end
       end
-    end
-
-    def self.default
-      find_by(default: true)
     end
 
     def to_s
@@ -74,25 +66,6 @@ module SolidusAdvancedPricing
 
     def normalize_code
       self.code = code&.strip&.downcase.presence
-    end
-
-    # Mirrors Spree::Store#ensure_default_exists_and_is_unique. Without it two
-    # rows can carry `default: true`, and a later task memoizes the default id
-    # per process — two workers could memoize different ids and price lookups
-    # would diverge by worker.
-    def ensure_default_exists_and_is_unique
-      if default?
-        self.class.where.not(id: id).update_all(default: false)
-      elsif self.class.where(default: true).where.not(id: id).none?
-        self.default = true
-      end
-    end
-
-    def prevent_discarding_default
-      return unless default?
-
-      errors.add(:base, :cannot_discard_default)
-      throw :abort
     end
 
     def prevent_destroying_referenced_type

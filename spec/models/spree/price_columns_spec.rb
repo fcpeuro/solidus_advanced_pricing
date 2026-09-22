@@ -9,9 +9,10 @@ RSpec.describe Spree::Price do
     )
   end
 
-  it "defaults a new price to the default price type" do
-    price = create(:price)
-    expect(price.price_type.code).to eq("default")
+  it "builds a price with no type as valid, with price_type_id nil" do
+    price = build(:price, price_type: nil)
+    expect(price).to be_valid
+    expect(price.price_type_id).to be_nil
   end
 
   it "keeps its price type after the type is retired" do
@@ -50,14 +51,6 @@ RSpec.describe Spree::Price do
     expect(price.valid_from).to eq(Time.zone.parse("2026-01-01"))
     expect(price.valid_to).to eq(Time.zone.parse("2026-02-01"))
     expect(price.admin_notes).to eq("Overstock Sale of 2012")
-  end
-
-  it "reports a missing price type exactly once" do
-    price = build(:price)
-    allow(SolidusAdvancedPricing::PriceTypeCache).to receive(:default_id).and_return(nil)
-    price.price_type_id = nil
-    price.valid?
-    expect(price.errors[:price_type].size).to eq(1)
   end
 
   it "does not clobber an explicitly assigned price type" do

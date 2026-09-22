@@ -19,9 +19,4 @@ RSpec.feature "managing price types" do
 
     expect(SolidusAdvancedPricing::PriceType.find_by(code: "dealer")).to be_present
   end
-
-  scenario "refuses to delete the default type" do
-    default_type = SolidusAdvancedPricing::PriceType.find_by(code: "default")
-    expect(default_type.discard).to be(false)
-  end
 end
