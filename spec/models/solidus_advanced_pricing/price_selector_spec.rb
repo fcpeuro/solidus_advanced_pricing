@@ -75,4 +75,12 @@ RSpec.describe SolidusAdvancedPricing::PriceSelector do
     result = selector.price_for_options(options(price_type_id: default_type.id))
     expect(result.amount).to eq(100)
   end
+
+  it "returns nil when candidates exist but none serve the requested country" do
+    create(:country, iso: "DE")
+    create(:country, iso: "FR")
+    variant.prices.each { |price| price.update!(country_iso: "FR") }
+    variant.reload
+    expect(selector.price_for_options(options(country_iso: "DE"))).to be_nil
+  end
 end

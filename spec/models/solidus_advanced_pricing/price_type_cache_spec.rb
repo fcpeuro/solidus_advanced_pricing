@@ -27,4 +27,22 @@ RSpec.describe SolidusAdvancedPricing::PriceTypeCache do
     described_class.default_id
     expect { described_class.default_id }.not_to make_database_queries
   end
+
+  describe ".position_for" do
+    it "returns the position of a price type" do
+      sale = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
+      expect(described_class.position_for(sale.id)).to eq(sale.position)
+    end
+
+    it "still resolves a retired type" do
+      sale = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
+      sale.discard
+      described_class.clear
+      expect(described_class.position_for(sale.id)).to eq(sale.position)
+    end
+
+    it "falls back to 0 for an unknown id" do
+      expect(described_class.position_for(-1)).to eq(0)
+    end
+  end
 end

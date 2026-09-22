@@ -61,7 +61,7 @@ module SolidusAdvancedPricing
       candidates.min_by do |price|
         [
           price.amount,
-          price.price_type&.position || 0,
+          SolidusAdvancedPricing::PriceTypeCache.position_for(price.price_type_id),
           -(price.updated_at || Time.zone.now).to_i,
           -(price.id || Float::INFINITY)
         ]
