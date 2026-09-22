@@ -1965,6 +1965,91 @@ git commit -m "feat: register the advanced price selector"
 
 ## Phase 5 — Integration
 
+### Task 16a: Fix `search_arguments` (CRITICAL — do this first)
+
+**Files:**
+- Modify: `app/models/solidus_advanced_pricing/pricing_options.rb`
+- Test: `spec/models/solidus_advanced_pricing/pricing_options_search_arguments_spec.rb`
+
+Core's `PricingOptions#search_arguments` returns `desired_attributes` with `country_iso`
+expanded to `[wanted, nil]`. Now that `desired_attributes` also carries `price_type_id` and
+`role_id`, that hash is wrong in two ways, both verified against the dummy app:
+
+```
+SEARCH_ARGS:     {currency: "USD", country_iso: [nil], price_type_id: nil, role_id: nil}
+MATCHING_PRICES: 0        TOTAL_PRICES: 2
+```
+
+1. **`price_type_id: nil` matches no rows**, because the column is NOT NULL. Two core call sites
+   do a raw `Spree::Price.where(pricing_options.search_arguments)` —
+   `core/lib/spree/core/search/base.rb` (product search) and
+   `core/app/helpers/spree/taxons_helper.rb`. Product search would return **zero products**.
+2. **`search_arguments` mutates `desired_attributes` in place** (core assigns
+   `search_arguments = desired_attributes` and then writes to it), so calling it corrupts the
+   options object for every later reader.
+
+Override it:
+
+```ruby
+    # Core's version returns desired_attributes itself and mutates it. It also can't know that
+    # price_type_id is NOT NULL, so a nil pin would match no rows at all.
+    def search_arguments
+      arguments = desired_attributes.dup
+      arguments[:country_iso] = [desired_attributes[:country_iso], nil].flatten.uniq
+      arguments[:role_id] = [nil, *customer_role_ids].uniq
+      arguments.delete(:price_type_id) if desired_attributes[:price_type_id].nil?
+      arguments
+    end
+```
+
+Spec it:
+
+```ruby
+# frozen_string_literal: true
+
+require 'spec_helper'
+
+RSpec.describe SolidusAdvancedPricing::PricingOptions, 'search_arguments' do
+  let(:store) { create(:store) }
+  let(:options) { described_class.from_context(double(current_spree_user: nil, current_store: store)) }
+
+  it 'matches the prices a storefront visitor can actually see' do
+    create(:variant, price: 100)
+    expect(::Spree::Price.where(options.search_arguments).count).to be > 0
+  end
+
+  it 'drops an unpinned price type rather than filtering on NULL' do
+    expect(options.search_arguments).not_to have_key(:price_type_id)
+  end
+
+  it 'keeps a pinned price type' do
+    pinned = described_class.new(price_type_id: 7)
+    expect(pinned.search_arguments[:price_type_id]).to eq(7)
+  end
+
+  it 'expands role_id to include untargeted prices' do
+    expect(described_class.new(customer_role_ids: [3]).search_arguments[:role_id]).to eq([nil, 3])
+  end
+
+  it 'does not mutate desired_attributes' do
+    before_call = options.desired_attributes.dup
+    options.search_arguments
+    expect(options.desired_attributes).to eq(before_call)
+  end
+end
+```
+
+**Known limitation to document, not fix here:** `search_arguments` is a plain equality hash and
+cannot express the validity window, so product search and taxon filtering ignore `valid_from` /
+`valid_to`. A variant whose only price expired yesterday still appears in search results, though
+`price_for_options` will correctly return nil for it. Closing that needs those two core call
+sites overridden as well; note it in the README's limitations section rather than widening this
+task.
+
+Commit: `fix: stop search_arguments filtering every product out of search`
+
+---
+
 ### Task 16: Override Variant.with_prices
 
 **Files:**
