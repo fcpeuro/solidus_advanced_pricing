@@ -27,16 +27,14 @@ module SolidusAdvancedPricing
       )
     end
 
-    # Not delegated to super: core's from_context calls context.current_store
-    # unguarded, which only real controller/view contexts implement. #try keeps
-    # this safe for any caller that exposes current_spree_user without a store.
+    # price_type_id: nil means "any type competes" (see from_line_item above).
     def self.from_context(context)
-      store = context.try(:current_store)
+      options = super
       new(
-        currency: store.try(:default_currency).presence || ::Spree::Config.currency,
-        country_iso: store.try(:cart_tax_country_iso).presence,
-        price_type_id: nil,
-        customer_role_ids: pricing_relevant_role_ids(context.try(:current_spree_user))
+        options.desired_attributes.merge(
+          price_type_id: nil,
+          customer_role_ids: pricing_relevant_role_ids(context.try(:current_spree_user))
+        )
       )
     end
 

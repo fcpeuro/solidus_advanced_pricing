@@ -47,7 +47,8 @@ RSpec.describe SolidusAdvancedPricing::PricingOptions do
   end
 
   describe ".from_context" do
-    let(:context) { double(current_spree_user: user) }
+    let(:store) { create(:store) }
+    let(:context) { double(current_spree_user: user, current_store: store) }
 
     context "with a guest" do
       let(:user) { nil }
@@ -71,11 +72,12 @@ RSpec.describe SolidusAdvancedPricing::PricingOptions do
     it "narrows away roles no price references" do
       irrelevant = create(:role, name: "newsletter")
       user = create(:user, spree_roles: [irrelevant])
-      expect(described_class.from_context(double(current_spree_user: user)).customer_role_ids).to eq([])
+      expect(described_class.from_context(double(current_spree_user: user, current_store: store)).customer_role_ids)
+        .to eq([])
     end
 
     it "clears the pinned price type so every type competes" do
-      expect(described_class.from_context(double(current_spree_user: nil))
+      expect(described_class.from_context(double(current_spree_user: nil, current_store: store))
         .desired_attributes[:price_type_id]).to be_nil
     end
   end
