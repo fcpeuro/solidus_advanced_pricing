@@ -5,6 +5,12 @@ require "spec_helper"
 RSpec.describe "solidus_admin price types menu item" do
   subject(:item) { SolidusAdmin::Config.menu_items.find { |i| i[:key].to_s == "price_types" } }
 
+  # solidus_admin ships from Solidus 4.3; on older legs of the CI matrix the
+  # engine initializer correctly registers nothing.
+  before do
+    skip "solidus_admin not available" unless SolidusSupport.admin_available?
+  end
+
   it "is registered once" do
     expect(SolidusAdmin::Config.menu_items.count { |i| i[:key].to_s == "price_types" }).to eq(1)
   end
