@@ -4,11 +4,14 @@
 en:
   hello: Hello world
   solidus_advanced_pricing:
+    price_types: "Price Types"
     all_customers: "All customers"
     role_hint: "Leave blank for all customers. A price type name alone grants no access control — an employee-only price needs this field set."
     admin_notes_hint: "Internal only. Never shown to customers."
     validity: "Validity"
   solidus_admin:
+    menu_item:
+      price_types: "Price Types"
     price_types:
       title: "Price Types"
       destroy:

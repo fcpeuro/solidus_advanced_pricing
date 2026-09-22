@@ -177,12 +177,14 @@ key. The default of 60 seconds bounds how stale a validity-window transition can
   (`app/overrides/spree/admin/prices/_form/add_advanced_fields.html.erb.deface`).
 - The prices tables (both the single-variant and master-variant listings) gain
   columns for type, role, and validity.
-- Price types get full CRUD at `/admin/price_types` (`spree.admin_price_types_path`).
-  This gem does not hook the admin configurations menu, so there is no sidebar link
-  to it — link to it yourself, or navigate there directly.
+- Price types get full CRUD at `/admin/price_types` (`spree.admin_price_types_path`),
+  linked from the settings sidebar (Deface override on
+  `spree/admin/shared/_configuration_menu`).
 
 **solidus_admin** gets a **price types index only**
-(`SolidusAdmin::PriceTypes::Index::Component`, at `solidus_admin.price_types_path`).
+(`SolidusAdmin::PriceTypes::Index::Component`, at `solidus_admin.price_types_path`),
+linked from the main navigation (registered via `SolidusAdmin::Config.menu_items`
+in `lib/solidus_advanced_pricing/engine.rb`) whenever `solidus_admin` is mounted.
 Its rows link back to the legacy backend for edit/new; per-variant price management
 stays entirely in the legacy backend. This is deliberate: upstream Solidus's new
 admin has no prices screen of its own yet, and building one here would mean guessing

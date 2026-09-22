@@ -1,0 +1,4 @@
+<!-- insert_bottom "[data-hook='admin_configurations_sidebar_menu']" -->
+<% if can?(:manage, SolidusAdvancedPricing::PriceType) %>
+  <%= settings_tab_item t('solidus_advanced_pricing.price_types'), spree.admin_price_types_path %>
+<% end %>

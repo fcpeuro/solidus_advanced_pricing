@@ -19,5 +19,19 @@ module SolidusAdvancedPricing
     config.generators do |g|
       g.test_framework :rspec
     end
+
+    # A decorator would re-append this on every `to_prepare` reload; an
+    # initializer runs once at boot.
+    initializer "solidus_advanced_pricing.menu_items" do
+      next unless defined?(::SolidusAdmin::Config)
+      next if ::SolidusAdmin::Config.menu_items.any? { |item| item[:key].to_s == "price_types" }
+
+      ::SolidusAdmin::Config.menu_items << {
+        key: "price_types",
+        route: -> { solidus_admin.price_types_path },
+        icon: "price-tag-3-line",
+        position: 65
+      }
+    end
   end
 end
