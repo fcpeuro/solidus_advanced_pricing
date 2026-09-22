@@ -4,15 +4,22 @@ module SolidusAdvancedPricing
   # Discarding a type hides it from admin dropdowns but leaves historical
   # prices resolvable through it; prices are never reassigned when a type is
   # retired, so a retired type's code stays reserved rather than reusable.
-  class PriceType < Spree::Base
-    include Spree::SoftDeletable
+  # `::Spree::Base` etc. are qualified from the root: the
+  # `solidus_advanced_pricing/spree` decorator namespace shadows the bare
+  # `Spree` constant here otherwise (Zeitwerk const-shadowing gotcha).
+  class PriceType < ::Spree::Base
+    include ::Spree::SoftDeletable
 
     self.table_name = "solidus_advanced_pricing_price_types"
 
-    # NOTE: `has_many :prices` is deliberately NOT declared here. `spree_prices`
-    # has no `price_type_id` column and `Spree::Price` has no `price_type`
-    # association until Task 7, so declaring it now makes both `prices` and
-    # `destroy` raise InverseOfAssociationNotFoundError. It lands in Task 7.
+    has_many :prices,
+      class_name: "Spree::Price",
+      foreign_key: :price_type_id,
+      inverse_of: :price_type
+
+    # Not `dependent: :restrict_with_error` — that check is default-scoped and
+    # misses discarded prices, which then trip the FK on DELETE.
+    before_destroy :prevent_destroying_referenced_type
 
     before_validation :normalize_code
     before_save :ensure_default_exists_and_is_unique
@@ -81,6 +88,13 @@ module SolidusAdvancedPricing
       return unless default?
 
       errors.add(:base, :cannot_discard_default)
+      throw :abort
+    end
+
+    def prevent_destroying_referenced_type
+      return unless prices.with_discarded.exists?
+
+      errors.add(:base, :referenced_by_prices)
       throw :abort
     end
   end
