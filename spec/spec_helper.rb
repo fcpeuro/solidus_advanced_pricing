@@ -33,6 +33,10 @@ RSpec.configure do |config|
     config.extend Spree::TestingSupport::AuthorizationHelpers::Request, type: :system
   end
 
+  config.before(:suite) do
+    Spree::Config.variant_price_selector_class = "SolidusAdvancedPricing::PriceSelector"
+  end
+
   config.before do
     SolidusAdvancedPricing::PriceType.seed!
   end
