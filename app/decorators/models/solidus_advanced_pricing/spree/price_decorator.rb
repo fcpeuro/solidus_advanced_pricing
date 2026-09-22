@@ -16,6 +16,20 @@ module SolidusAdvancedPricing
 
         base.before_validation :assign_default_price_type
         base.validate :valid_to_after_valid_from
+
+        # valid_to is exclusive so a window ending at midnight and the next one starting at midnight do not both match.
+        base.scope :valid_at, ->(time) {
+          where(arel_table[:valid_from].eq(nil).or(arel_table[:valid_from].lteq(time)))
+            .where(arel_table[:valid_to].eq(nil).or(arel_table[:valid_to].gt(time)))
+        }
+
+        base.scope :visible_to_roles, ->(role_ids) {
+          where(role_id: [nil, *role_ids])
+        }
+
+        base.scope :for_price_type, ->(price_type) {
+          where(price_type_id: price_type)
+        }
       end
 
       private
