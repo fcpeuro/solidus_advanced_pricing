@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Patrick McMorran"]
   spec.email = "pat.mcmorran@fcpeuro.com"
 
-  spec.summary = "TODO: Write a short summary, because RubyGems requires one."
-  spec.description = "TODO: Write a longer description or delete this line."
+  spec.summary = "Price types, validity windows and role targeting for Solidus prices"
+  spec.description = "Adds an admin-managed price type, an optional validity window, optional single-role targeting and internal admin notes to Spree::Price, selected through Solidus' own variant_price_selector_class seam."
   spec.homepage = "https://github.com/solidusio-contrib/solidus_advanced_pricing#readme"
   spec.license = "BSD-3-Clause"
 
