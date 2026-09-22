@@ -34,8 +34,8 @@ The generator:
 - Copies this gem's three migrations into your app.
 - Offers to run `bin/rails db:migrate` for you.
 
-Those migrations add the columns described below to `spree_prices` and seed four
-price types (`wholesale`, `sale`, `clearance`, `employee`). Nothing about existing
+Those migrations add the columns described below to `spree_prices` and seed six
+price types (`wholesale`, `sale`, `clearance`, `employee`, `map`, `promotional`). Nothing about existing
 pricing behavior changes until you start setting the new columns — see
 [Backward compatibility](#backward-compatibility).
 
@@ -57,7 +57,7 @@ must be after `valid_from` when both are set.
 **Setting a price's `price_type` to `employee` does nothing on its own.** Type and
 role are independent columns. A price typed `employee` with `role_id` left blank is
 visible to every customer, guests included — the name is just a label for the admin
-UI and reporting; it grants no eligibility by itself. Two of the four seeded types,
+UI and reporting; it grants no eligibility by itself. Two of the six seeded types,
 `wholesale` and `employee`, exist specifically to invite this mistake.
 
 If a price should only be available to a specific group, you must **also** set `role`:

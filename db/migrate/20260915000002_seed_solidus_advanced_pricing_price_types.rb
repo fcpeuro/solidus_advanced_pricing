@@ -5,7 +5,9 @@ class SeedSolidusAdvancedPricingPriceTypes < ActiveRecord::Migration[7.0]
     {code: "wholesale", name: "Wholesale", position: 1},
     {code: "sale", name: "Sale", position: 2},
     {code: "clearance", name: "Clearance", position: 3},
-    {code: "employee", name: "Employee", position: 4}
+    {code: "employee", name: "Employee", position: 4},
+    {code: "map", name: "MAP", position: 5},
+    {code: "promotional", name: "Promotional", position: 6}
   ].freeze
 
   def up
