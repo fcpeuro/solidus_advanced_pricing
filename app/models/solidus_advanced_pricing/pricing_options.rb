@@ -61,5 +61,27 @@ module SolidusAdvancedPricing
       @customer_role_ids = Array(attributes.delete(:customer_role_ids))
       super(attributes)
     end
+
+    # Core keys only on desired_attributes; customer context lives outside it, so
+    # without this a role-targeted price would be cached and served to a guest.
+    def cache_key
+      [super, roles_cache_component, time_cache_component].compact.join("/")
+    end
+
+    private
+
+    def roles_cache_component
+      return "r-none" if customer_role_ids.empty?
+
+      "r-#{customer_role_ids.sort.join("-")}"
+    end
+
+    def time_cache_component
+      granularity = ::Spree::Config.advanced_pricing_cache_granularity.to_i
+      return nil if granularity <= 0
+      return nil if at.nil?
+
+      "t-#{at.to_i / granularity}"
+    end
   end
 end
