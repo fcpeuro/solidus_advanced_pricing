@@ -27,6 +27,8 @@ module SolidusAdvancedPricing
 
       # nil means the untyped base price. Accepts a PriceType, an id, or a code.
       def price_of_type(price_type, pricing_options = ::Spree::Config.default_pricing_options)
+        SolidusAdvancedPricing.assert_advanced_pricing_options!(pricing_options)
+
         price_selector.price_for_options(
           pricing_options.with(price_type_id: SolidusAdvancedPricing.resolve_price_type_id(price_type))
         )
@@ -41,9 +43,22 @@ module SolidusAdvancedPricing
       # A MAP-restricted variant may carry no untyped price at all; fall back so
       # variant.price is never blank when some price exists.
       def default_price
-        super || price_selector.price_for_options(
-          ::Spree::Config.default_pricing_options.with(price_type_id: :any)
-        )
+        super || typed_fallback_price
+      end
+
+      private
+
+      # Core calls default_price on the way into `price=`, so this runs in stores
+      # that installed the gem and never registered its selector. Those get core's
+      # PricingOptions, which has no price_type_id, and `with` would raise rather
+      # than fall back -- breaking every `variant.price = ...`, product creation
+      # included. Without the selector there are no typed prices to fall back to
+      # anyway, so the right answer is core's: nothing.
+      def typed_fallback_price
+        pricing_options = ::Spree::Config.default_pricing_options
+        return unless SolidusAdvancedPricing.advanced_pricing_options?(pricing_options)
+
+        price_selector.price_for_options(pricing_options.with(price_type_id: :any))
       end
 
       ::Spree::Variant.prepend self
