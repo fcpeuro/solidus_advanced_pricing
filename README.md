@@ -302,21 +302,199 @@ against pre-1.0 `solidus_admin` internals (`SolidusAdmin::UI::Pages::Index::Comp
 ## API
 
 ```
-GET /api/variants/:variant_id/prices
-GET /api/variants/:variant_id/prices/:id
+GET    /api/variants/:variant_id/prices
+GET    /api/variants/:variant_id/prices/:id
+POST   /api/variants/:variant_id/prices
+PATCH  /api/variants/:variant_id/prices/:id
+DELETE /api/variants/:variant_id/prices/:id
+
+GET    /api/price_types
 ```
 
 Each price is serialized with its advanced attributes — `price_type_code`,
 `price_type_name`, `role_id`, `valid_from`, `valid_to` — and `admin_notes` is included
 only for a caller who can update that price.
 
-**This endpoint is admin-facing.** Core's `DefaultCustomer` permission set (what every
+**These endpoints are admin-facing.** Core's `DefaultCustomer` permission set (what every
 non-admin API token gets) grants no rights on `Spree::Price` at all, so a non-admin
 token receives `401 Unauthorized` on the whole endpoint, not a filtered response.
 Headless storefronts do not need this endpoint for normal pricing: core's variants
 endpoint already serializes `price` and `display_price` through this gem's selector
 automatically, because the selector is registered globally via
 `Spree::Config.variant_price_selector_class`.
+
+### Writing prices
+
+```shell
+curl -X POST https://store.example/api/variants/42/prices \
+  -H "Authorization: Bearer $SPREE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"price": {"amount": "35.00", "price_type_code": "sale",
+                 "valid_from": "2026-11-27T00:00:00Z",
+                 "valid_to": "2026-12-02T00:00:00Z"}}'
+```
+
+- **`price_type_code` is accepted anywhere `price_type_id` is**, and is the better choice
+  for anything scripted: ids differ between your staging and production databases, codes
+  do not. Sending both is a `422`. Sending `price_type_code: null` (or `""`) means the
+  untyped base price, the same as omitting `price_type_id`.
+- **`currency` defaults to `Spree::Config.default_pricing_options.currency`** when the
+  payload omits it.
+- **`price_type` cannot be changed once a price exists.** The admin form has disabled that
+  select on persisted prices since 0.2.0, and the model now enforces it, so the API can't
+  route around it. Retyping a row reinterprets history instead of correcting it; to fix a
+  mistyped price, delete it and create the right one. Re-sending the *same*
+  `price_type_id` on an update is fine, so ordinary read-modify-write clients are
+  unaffected.
+- **`DELETE` soft-deletes** (sets `deleted_at`), so the row stays available to anything
+  reporting on what a variant used to cost. Deleted prices are excluded from the listing;
+  pass `?show_deleted=true` to include them. Writes never reach a deleted price — updating
+  one is a `404`.
+
+Remember that the selector takes the **cheapest** eligible price
+([how a price is chosen](#how-a-price-is-chosen)). A role-targeted price written *above*
+the untargeted price will never apply, and the API will not warn you about it.
+
+Nothing here stops you deleting a variant's only open-ended price, which leaves that
+variant unpriced outside its remaining windows (see
+[Backward compatibility](#backward-compatibility)). If that matters to your store, assert
+it on your side.
+
+### Batch writes
+
+```
+POST /api/prices/batch
+```
+
+One call, many prices, across many variants. Always answers `200` with a per-row report,
+never a partial `4xx` — a caller that sent 500 rows and got a bare `422` has no way to
+know which of them landed.
+
+```shell
+curl -X POST https://store.example/api/prices/batch \
+  -H "Authorization: Bearer $SPREE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "mode": "upsert",
+        "dry_run": true,
+        "prices": [
+          {"sku": "ABC-123", "amount": "35.00", "price_type_code": "sale"},
+          {"sku": "DEF-456", "amount": "45.00", "price_type_code": "sale"},
+          {"id": 907, "amount": "29.99"}
+        ]
+      }'
+```
+
+```json
+{
+  "mode": "upsert",
+  "dry_run": true,
+  "summary": {"created": 1, "updated": 1},
+  "results": [
+    {"index": 0, "status": "created", "variant_id": 42},
+    {"index": 1, "status": "updated", "price_id": 907, "variant_id": 43}
+  ]
+}
+```
+
+Each row takes the same attributes as a single price, plus `id` and `sku`. Per-row
+`status` is `created`, `updated`, `unchanged`, `deleted` or `error`; an `error` row carries
+`errors` and nothing was written for it.
+
+**Send it as JSON.** Form encoding cannot represent an array of hashes whose rows have
+different keys — Rack starts a new hash only when it meets a key it has already seen, so
+`[{"id": 1, "amount": 2}, {"variant_id": 3, "amount": 4}]` arrives as
+`[{"id": 1, "amount": 2, "variant_id": 3}, {"amount": 4}]`. Set
+`Content-Type: application/json`.
+
+#### Naming a row: `id`, or the natural key
+
+**If a row carries `id`, that is the price it changes** — nothing is inferred, nothing can
+be mismatched, and `variant_id`/`sku` become optional (the price already knows its
+variant; supply one and it is checked, not applied). An `id` that does not exist, or that
+has been deleted, is an `error` on that row rather than a new price. This is the right
+shape for read-modify-write: fetch the prices, change what you need, send them back.
+
+**Without an `id`, the row is matched on the natural key** — variant, currency, country,
+price type, role and `valid_from`. Those are the dimensions a price legitimately varies
+on, so an upsert on them is unambiguous, and re-sending the same payload is a no-op rather
+than a pile of duplicates.
+
+That second path is not redundant with the first. A payload authored where Solidus ids are
+unknown — a supplier feed, a merchandiser's spreadsheet, a backfill from another system —
+has no ids to send, and `id`-or-create alone would make every re-run duplicate the whole
+file. The natural key is what makes a nightly feed idempotent.
+
+`valid_to` is deliberately *not* in the key: extending or shortening a window edits the
+price you already have. `valid_from` is matched to the second, because a client that read a
+price back and re-sent its `valid_from` may have dropped the sub-second part in
+serialization, and treating that as a different price would duplicate the row — and under
+`replace`, discard the original. Sending the `id` sidesteps that question entirely.
+
+Two rows in one payload naming the same price — by `id` or by key — are an `error` on the
+second, not a silent last-one-wins.
+
+Fields in the natural key (`currency`, `country_iso`, `role_id`, `valid_from`) can only be
+*changed* by a row that names the price by `id`; on a keyed row they are how the price was
+found. `price_type` cannot be changed either way — see
+[Writing prices](#writing-prices).
+
+#### Modes
+
+- **`upsert`** (default) creates or updates the rows you send and touches nothing else.
+- **`replace`** additionally discards prices the payload *left out* — but only of a price
+  type the payload named, on a variant the payload named. A `replace` that sends one sale
+  price will not reach that variant's base price or its wholesale tier, and will not reach
+  any other variant. Deleted rows appear in the report with `status: "deleted"`.
+
+#### `dry_run`
+
+`dry_run: true` does the real work against the database inside a transaction and rolls it
+back, so the report reflects what the write would actually do — validations, type casting
+and constraints included — rather than a guess at it. Ids are omitted from `created` rows
+on a dry run, since they are about to stop existing.
+
+**Use it.** The failure mode of a bulk price load is a silent one.
+
+#### Atomicity
+
+Rows are applied independently, each in its own savepoint: one bad row does not take the
+batch down, and the successful rows are committed. This is what makes a row-wise retry
+possible. If you need all-or-nothing, run the payload with `dry_run: true` first and only
+send it for real once the report is clean.
+
+#### Limits and store policy
+
+`Spree::Config` is not involved; the extension has its own configuration:
+
+```ruby
+SolidusAdvancedPricing.configure do |config|
+  config.batch_row_limit = 500 # default
+
+  # Called once every row is written and before the transaction commits.
+  # Raise to abort the whole batch.
+  config.batch_guard = ->(batch) do
+    raise TooMuchMovement if batch.summary.fetch(:updated, 0) > 200
+  end
+end
+```
+
+A batch over `batch_row_limit` is refused with a `422` before any row is looked at — a
+synchronous request has to stay inside the web timeout, and anything larger belongs in a
+background job.
+
+`batch_guard` is the seam for store policy — "refuse a batch that moves more than N% of
+prices by more than X%" — which does not belong in a general-purpose extension but does
+need somewhere to stand where it can see the finished picture and still stop it.
+
+### Reading price types
+
+`GET /api/price_types` lists the types a price payload may reference — `id`, `code`,
+`name`, `position` and the type's default `role_id` — in `position` order. Retired
+(discarded) types are omitted, since they are no longer a valid choice; historical prices
+still report their own type's code through the prices endpoints. The endpoint is
+read-only and admin-authorized: creating a pricing dimension is an admin act, not an API
+one.
 
 ## Storefront: compare-at (strikethrough) pricing
 

@@ -3,8 +3,15 @@
 Spree::Core::Engine.routes.draw do
   namespace :api, defaults: {format: "json"} do
     resources :variants, only: [] do
-      resources :prices, only: [:index, :show]
+      resources :prices, only: [:index, :show, :create, :update, :destroy]
     end
+
+    # Not nested under a variant: a batch spans variants, which is the point of it.
+    post "prices/batch", to: "price_batches#create", as: :price_batch
+
+    # Read-only: a client building a price payload needs the codes and ids, but
+    # creating a pricing dimension is an admin act, not an API one.
+    resources :price_types, only: [:index]
   end
 
   namespace :admin do

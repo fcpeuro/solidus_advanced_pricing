@@ -4,6 +4,55 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Write endpoints for prices.** `POST`, `PATCH` and `DELETE` on
+  `/api/variants/:variant_id/prices`, so prices can be administered over the API rather
+  than only read. `DELETE` soft-deletes.
+- **`price_type_code` is accepted anywhere `price_type_id` is** on a price payload. Ids
+  are per-database and codes are not, so a payload written against staging works unchanged
+  against production. Sending both is a `422`; an explicit null means the untyped base
+  price.
+- **`GET /api/price_types`**, listing the types a price payload may reference with their
+  ids, codes, names, positions and default roles. Read-only and admin-authorized.
+- **Batch writes: `POST /api/prices/batch`** and the `SolidusAdvancedPricing::PriceBatch`
+  service behind it. Many prices across many variants in one call, matched on the natural
+  key (variant, currency, country, price type, role, `valid_from`) so re-sending a payload
+  is a no-op rather than a pile of duplicates. Always answers `200` with a per-row report.
+  - `dry_run: true` runs the real work in a transaction and rolls it back, so the report
+    reflects what the write would do rather than a guess at it.
+  - A row carrying `id` names that price outright: `variant_id`/`sku` become optional and
+    are checked rather than applied, natural-key fields such as `currency`, `role_id` and
+    `valid_from` become editable, and an unknown or deleted `id` is a row error rather than
+    a new price.
+  - `mode: "replace"` also discards prices the payload left out — scoped to price types and
+    variants the payload actually named.
+  - Rows are applied independently in savepoints, so one bad row does not take the batch
+    down and a row-wise retry is possible.
+  - `SolidusAdvancedPricing.config.batch_row_limit` (default 500) and
+    `config.batch_guard`, a callable invoked with every row written and nothing committed,
+    which may raise to abort. The seam for store policy that does not belong in the gem.
+- `currency` now defaults to `Spree::Config.default_pricing_options.currency` when a
+  created price omits it.
+
+### Fixed
+
+- **`GET /api/variants/:variant_id/prices` listed soft-deleted prices.**
+  `Spree::Variant#prices` is declared `-> { with_discarded }` in core, which the endpoint
+  inherited, so anything an admin had deleted still came back. Deleted prices are now
+  excluded by default; `?show_deleted=true` opts back in.
+
+### Changed
+
+- **`price_type` is now immutable on a persisted price**, raising a validation error
+  instead of silently retyping the row. The admin form has disabled that select since
+  0.2.0; this closes the same gap at the model layer so the API cannot route around it.
+  Re-sending an unchanged `price_type_id` is still fine. Code that deliberately retypes an
+  existing price must now discard it and create a replacement, or use `update_columns` to
+  bypass validation in a data migration.
+
 ## [0.2.0] - 2026-09-23
 
 ### Added
