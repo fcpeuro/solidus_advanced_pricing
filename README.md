@@ -360,6 +360,108 @@ variant unpriced outside its remaining windows (see
 [Backward compatibility](#backward-compatibility)). If that matters to your store, assert
 it on your side.
 
+### Batch writes
+
+```
+POST /api/prices/batch
+```
+
+One call, many prices, across many variants. Always answers `200` with a per-row report,
+never a partial `4xx` — a caller that sent 500 rows and got a bare `422` has no way to
+know which of them landed.
+
+```shell
+curl -X POST https://store.example/api/prices/batch \
+  -H "Authorization: Bearer $SPREE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "mode": "upsert",
+        "dry_run": true,
+        "prices": [
+          {"sku": "ABC-123", "amount": "35.00", "price_type_code": "sale"},
+          {"sku": "DEF-456", "amount": "45.00", "price_type_code": "sale"}
+        ]
+      }'
+```
+
+```json
+{
+  "mode": "upsert",
+  "dry_run": true,
+  "summary": {"created": 1, "updated": 1},
+  "results": [
+    {"index": 0, "status": "created", "variant_id": 42},
+    {"index": 1, "status": "updated", "price_id": 907, "variant_id": 43}
+  ]
+}
+```
+
+Each row takes the same attributes as a single price, plus `sku` as an alternative to
+`variant_id` (give one, not both). Per-row `status` is `created`, `updated`, `unchanged`,
+`deleted` or `error`; an `error` row carries `errors` and nothing was written for it.
+
+#### The natural key
+
+A row is matched against existing prices on **variant, currency, country, price type, role
+and `valid_from`**. Those are the dimensions a price legitimately varies on, so re-sending
+the same payload is a no-op rather than a pile of duplicates. `valid_to` is deliberately
+*not* in the key: extending or shortening a window edits the price you already have.
+
+`valid_from` is matched to the second. A client that read a price back and re-sent its
+`valid_from` may have dropped the sub-second part in serialization, and treating that as a
+different price would duplicate the row — and under `replace`, discard the original.
+
+Two rows in one payload that resolve to the same key are an `error` on the second, not a
+silent last-one-wins.
+
+#### Modes
+
+- **`upsert`** (default) creates or updates the rows you send and touches nothing else.
+- **`replace`** additionally discards prices the payload *left out* — but only of a price
+  type the payload named, on a variant the payload named. A `replace` that sends one sale
+  price will not reach that variant's base price or its wholesale tier, and will not reach
+  any other variant. Deleted rows appear in the report with `status: "deleted"`.
+
+#### `dry_run`
+
+`dry_run: true` does the real work against the database inside a transaction and rolls it
+back, so the report reflects what the write would actually do — validations, type casting
+and constraints included — rather than a guess at it. Ids are omitted from `created` rows
+on a dry run, since they are about to stop existing.
+
+**Use it.** The failure mode of a bulk price load is a silent one.
+
+#### Atomicity
+
+Rows are applied independently, each in its own savepoint: one bad row does not take the
+batch down, and the successful rows are committed. This is what makes a row-wise retry
+possible. If you need all-or-nothing, run the payload with `dry_run: true` first and only
+send it for real once the report is clean.
+
+#### Limits and store policy
+
+`Spree::Config` is not involved; the extension has its own configuration:
+
+```ruby
+SolidusAdvancedPricing.configure do |config|
+  config.batch_row_limit = 500 # default
+
+  # Called once every row is written and before the transaction commits.
+  # Raise to abort the whole batch.
+  config.batch_guard = ->(batch) do
+    raise TooMuchMovement if batch.summary.fetch(:updated, 0) > 200
+  end
+end
+```
+
+A batch over `batch_row_limit` is refused with a `422` before any row is looked at — a
+synchronous request has to stay inside the web timeout, and anything larger belongs in a
+background job.
+
+`batch_guard` is the seam for store policy — "refuse a batch that moves more than N% of
+prices by more than X%" — which does not belong in a general-purpose extension but does
+need somewhere to stand where it can see the finished picture and still stop it.
+
 ### Reading price types
 
 `GET /api/price_types` lists the types a price payload may reference — `id`, `code`,

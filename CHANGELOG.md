@@ -17,6 +17,19 @@ All notable changes to this project are documented here. The format is based on
   price.
 - **`GET /api/price_types`**, listing the types a price payload may reference with their
   ids, codes, names, positions and default roles. Read-only and admin-authorized.
+- **Batch writes: `POST /api/prices/batch`** and the `SolidusAdvancedPricing::PriceBatch`
+  service behind it. Many prices across many variants in one call, matched on the natural
+  key (variant, currency, country, price type, role, `valid_from`) so re-sending a payload
+  is a no-op rather than a pile of duplicates. Always answers `200` with a per-row report.
+  - `dry_run: true` runs the real work in a transaction and rolls it back, so the report
+    reflects what the write would do rather than a guess at it.
+  - `mode: "replace"` also discards prices the payload left out — scoped to price types and
+    variants the payload actually named.
+  - Rows are applied independently in savepoints, so one bad row does not take the batch
+    down and a row-wise retry is possible.
+  - `SolidusAdvancedPricing.config.batch_row_limit` (default 500) and
+    `config.batch_guard`, a callable invoked with every row written and nothing committed,
+    which may raise to abort. The seam for store policy that does not belong in the gem.
 - `currency` now defaults to `Spree::Config.default_pricing_options.currency` when a
   created price omits it.
 
