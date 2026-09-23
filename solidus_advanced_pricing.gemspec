@@ -10,12 +10,12 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Price types, validity windows and role targeting for Solidus prices"
   spec.description = "Adds an admin-managed price type, an optional validity window, optional single-role targeting and internal admin notes to Spree::Price, selected through Solidus' own variant_price_selector_class seam."
-  spec.homepage = "https://github.com/solidusio-contrib/solidus_advanced_pricing#readme"
+  spec.homepage = "https://github.com/fcpeuro/solidus_advanced_pricing#readme"
   spec.license = "BSD-3-Clause"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/solidusio-contrib/solidus_advanced_pricing"
-  spec.metadata["changelog_uri"] = "https://github.com/solidusio-contrib/solidus_advanced_pricing/blob/main/CHANGELOG.md"
+  spec.metadata["source_code_uri"] = "https://github.com/fcpeuro/solidus_advanced_pricing"
+  spec.metadata["changelog_uri"] = "https://github.com/fcpeuro/solidus_advanced_pricing/blob/main/CHANGELOG.md"
 
   spec.required_ruby_version = ">= 3.1"
 

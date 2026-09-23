@@ -7,7 +7,7 @@ module SolidusAdmin
     def resource_class = SolidusAdvancedPricing::PriceType
 
     def permitted_resource_params
-      params.require(:price_type).permit(:name, :code, :position)
+      params.require(:price_type).permit(:name, :code, :position, :role_id)
     end
 
     # ResourcesController derives these from resource_class.model_name, which for

@@ -56,6 +56,10 @@ module SolidusAdmin
             {
               header: :position,
               data: ->(price_type) { price_type.position }
+            },
+            {
+              header: :role_id,
+              data: ->(price_type) { price_type.role&.name || t("solidus_advanced_pricing.all_customers") }
             }
           ]
         end

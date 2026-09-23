@@ -17,4 +17,15 @@
       <%= f.number_field :position, class: 'fullwidth' %>
     <% end %>
   </div>
+  <div class="col-6">
+    <%= f.field_container :role do %>
+      <%= f.label :role_id, Spree::Role.model_name.human %>
+      <%= f.collection_select :role_id,
+                              Spree::Role.order(:name),
+                              :id, :name,
+                              { include_blank: t('solidus_advanced_pricing.all_customers') },
+                              { class: 'custom-select fullwidth' } %>
+      <span class="field-hint"><%= t('solidus_advanced_pricing.price_type_role_hint') %></span>
+    <% end %>
+  </div>
 </div>

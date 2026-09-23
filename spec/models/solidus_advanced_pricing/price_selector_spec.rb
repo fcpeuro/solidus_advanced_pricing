@@ -77,6 +77,38 @@ RSpec.describe SolidusAdvancedPricing::PriceSelector do
     expect(result.amount).to eq(90)
   end
 
+  it "hides a price whose type carries a default role, from a guest" do
+    employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+    employee_type.update!(role: wholesale_role)
+    create(:price, variant: variant, amount: 40, price_type: employee_type, role: nil)
+    variant.reload
+    expect(selector.price_for_options(options).amount).to eq(100)
+  ensure
+    employee_type&.update!(role: nil)
+  end
+
+  it "shows that price to a customer holding the type's default role" do
+    employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+    employee_type.update!(role: wholesale_role)
+    create(:price, variant: variant, amount: 40, price_type: employee_type, role: nil)
+    variant.reload
+    expect(selector.price_for_options(options(customer_role_ids: [wholesale_role.id])).amount).to eq(40)
+  ensure
+    employee_type&.update!(role: nil)
+  end
+
+  it "lets a price's own role override its type's default role" do
+    other_role = create(:role, name: "other")
+    employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+    employee_type.update!(role: wholesale_role)
+    create(:price, variant: variant, amount: 40, price_type: employee_type, role: other_role)
+    variant.reload
+    # The customer holds the type's default role but not the price's own role, so it's still hidden.
+    expect(selector.price_for_options(options(customer_role_ids: [wholesale_role.id])).amount).to eq(100)
+  ensure
+    employee_type&.update!(role: nil)
+  end
+
   it "returns nil when candidates exist but none serve the requested country" do
     create(:country, iso: "DE")
     create(:country, iso: "FR")

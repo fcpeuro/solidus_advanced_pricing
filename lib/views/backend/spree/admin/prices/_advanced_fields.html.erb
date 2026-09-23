@@ -5,8 +5,9 @@
       <%= f.collection_select :price_type_id,
                               SolidusAdvancedPricing::PriceType.ordered,
                               :id, :name,
-                              {},
-                              { class: 'custom-select fullwidth' } %>
+                              { include_blank: t('solidus_advanced_pricing.base_price') },
+                              { class: 'custom-select fullwidth', disabled: !f.object.new_record? } %>
+      <span class="field-hint"><%= t('solidus_advanced_pricing.price_type_hint') %></span>
     <% end %>
   </div>
 
@@ -25,14 +26,14 @@
   <div class="col-2">
     <%= f.field_container :valid_from do %>
       <%= f.label :valid_from %>
-      <%= f.text_field :valid_from, value: f.object.valid_from&.iso8601, class: 'fullwidth datepicker' %>
+      <%= f.datetime_local_field :valid_from, class: 'fullwidth' %>
     <% end %>
   </div>
 
   <div class="col-2">
     <%= f.field_container :valid_to do %>
       <%= f.label :valid_to %>
-      <%= f.text_field :valid_to, value: f.object.valid_to&.iso8601, class: 'fullwidth datepicker' %>
+      <%= f.datetime_local_field :valid_to, class: 'fullwidth' %>
     <% end %>
   </div>
 

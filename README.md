@@ -80,8 +80,8 @@ value for `price_of_type`.
 
 | Column | Type | Meaning |
 |---|---|---|
-| `price_type_id` | bigint, nullable | Belongs to `SolidusAdvancedPricing::PriceType`. `nil` means the untyped base price — exactly as `role_id: nil` means every customer. |
-| `role_id` | integer, nullable | Belongs to `Spree::Role`. `nil` means visible to everyone, including guests. |
+| `price_type_id` | bigint, nullable | Belongs to `SolidusAdvancedPricing::PriceType`. `nil` means the untyped base price — exactly as `role_id: nil` means "inherit from the type" (see below). |
+| `role_id` | integer, nullable | Belongs to `Spree::Role`. `nil` does **not** mean "public" — it means the price's visibility is inherited from its price type, if any. See [Effective role](#effective-role) below. |
 | `valid_from` | datetime, nullable | Window opens here. `nil` means always open. |
 | `valid_to` | datetime, nullable | Window closes here, **exclusive** — a price is valid up to but not including this instant, so a window ending at midnight and the next one starting at midnight don't both match. `nil` means never closes. |
 | `admin_notes` | text, nullable | Internal only. Never shown to customers; see [API](#api) for exactly who can see it. |
@@ -89,15 +89,61 @@ value for `price_of_type`.
 `price_type_id`, `role_id`, `valid_from` and `valid_to` are all optional. `valid_to`
 must be after `valid_from` when both are set.
 
-## A price type is not access control
+`SolidusAdvancedPricing::PriceType` also carries a nullable `role_id` of its own —
+the type's *default* role. See [Effective role](#effective-role).
 
-**Setting a price's `price_type` to `employee` does nothing on its own.** Type and
-role are independent columns. A price typed `employee` with `role_id` left blank is
-visible to every customer, guests included — the name is just a label for the admin
-UI and reporting; it grants no eligibility by itself. Two of the six seeded types,
-`wholesale` and `employee`, exist specifically to invite this mistake.
+## Effective role
 
-If a price should only be available to a specific group, you must **also** set `role`:
+A price's visibility to a customer is never decided by its own `role_id` alone. It is
+decided by its **effective role**:
+
+```ruby
+price.role_id || price.price_type&.role_id
+```
+
+**`nil` on a price's own `role_id` means "inherit from the type," not "explicitly
+public."** If the price has no type, or its type has no default role, the effective
+role is `nil` and the price is visible to everyone, including guests — exactly as
+before this feature existed. But once a price type carries a default role, every
+price of that type inherits it unless the price sets its own `role_id`.
+
+The deliberate consequence: **if the `employee` type has a default role, you cannot
+make an employee-typed price public.** Its `role_id` is either blank (inherits the
+type's role) or set to some other role (its own, more specific, targeting) — there is
+no value that means "ignore the type's default and show this to everyone." That
+tradeoff is the point. It turns this gem's biggest footgun — a price typed `employee`
+with no role, visible to every customer including guests — into something a store
+fixes once, on the type, instead of something every price author must remember.
+
+Stores are **not** seeded with any type-level defaults; all six seeded types
+(`wholesale`, `sale`, `clearance`, `employee`, `map`, `promotional`) ship with
+`role_id: nil`, because the correct role for, say, `employee` doesn't exist in every
+store. Set it yourself once eligibility should be automatic:
+
+```ruby
+employee_role = Spree::Role.find_or_create_by!(name: "employee")
+employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+employee_type.update!(role: employee_role)
+
+# Every price typed `employee`, existing or future, is now visible only to
+# customers holding the `employee` role -- no per-price role_id required.
+variant.prices.create!(amount: 45, currency: "USD", price_type: employee_type)
+```
+
+## A price type is not access control by default
+
+**Setting a price's `price_type` to `employee` does nothing on its own unless the
+type itself carries a default role.** Type and role are independent columns until a
+store links them via the type's `role_id`. A price typed `employee`, with the type
+having no default role and the price's own `role_id` left blank, is visible to every
+customer, guests included — the type name alone is just a label for the admin UI and
+reporting; it grants no eligibility by itself. Two of the six seeded types,
+`wholesale` and `employee`, exist specifically to invite this mistake — and setting a
+default role on the type (above) is the recommended way to close it for good, rather
+than remembering to set `role_id` on every price of that type.
+
+If you'd rather target one specific price without touching the type, set `role`
+directly on it:
 
 ```ruby
 employee_role = Spree::Role.find_or_create_by!(name: "employee")
@@ -112,7 +158,9 @@ variant.prices.create!(
 ```
 
 With both fields set, a guest or any customer without the `employee` role still sees
-the ordinary price; only a customer holding that role sees $45.
+the ordinary price; only a customer holding that role sees $45. This still works
+exactly as before even once the type has its own default role — an explicit
+`role_id` on the price always wins over the type's.
 
 ## How a price is chosen
 
@@ -121,9 +169,10 @@ in three steps:
 
 1. **Filter.** A price survives only if: its currency matches exactly; the current
    time falls inside its validity window (or it has none); and it's visible to the
-   customer — `role_id` is blank, or the customer holds that role. If a price type is
-   pinned (see [Admin vs. customer lookups](#admin-vs-customer-lookups) below),
-   non-matching types are dropped here too.
+   customer — its [effective role](#effective-role) is blank, or the customer holds
+   that role. If a price type is pinned (see
+   [Admin vs. customer lookups](#admin-vs-customer-lookups) below), non-matching
+   types are dropped here too.
 2. **Country specificity.** Among what survives, a price matching the customer's
    country beats every country-agnostic (`country_iso: nil`) price — **even when the
    agnostic price is cheaper.** This matches core Solidus behavior.

@@ -66,4 +66,31 @@ RSpec.describe Spree::Price do
     expect(sale_type.destroy).to be(false)
     expect(sale_type.errors[:base]).to be_present
   end
+
+  describe "#effective_role_id" do
+    let(:price_role) { create(:role, name: "wholesale") }
+    let(:type_role) { create(:role, name: "employee") }
+    let(:price_type) { create(:price_type, role: type_role) }
+
+    it "prefers the price's own role over the type's" do
+      price = create(:price, price_type: price_type, role: price_role)
+      expect(price.effective_role_id).to eq(price_role.id)
+    end
+
+    it "falls back to the type's role when the price's own role is nil" do
+      price = create(:price, price_type: price_type, role: nil)
+      expect(price.effective_role_id).to eq(type_role.id)
+    end
+
+    it "is nil when neither the price nor its type has a role" do
+      untyped = create(:price_type, role: nil)
+      price = create(:price, price_type: untyped, role: nil)
+      expect(price.effective_role_id).to be_nil
+    end
+
+    it "is nil for an untyped price with no role of its own" do
+      price = create(:price, price_type: nil, role: nil)
+      expect(price.effective_role_id).to be_nil
+    end
+  end
 end

@@ -74,6 +74,25 @@ RSpec.describe SolidusAdvancedPricing::PricingOptions do
         .to eq([])
     end
 
+    context "with a customer holding a role that exists only as a price type's default" do
+      let(:role) { create(:role, name: "employee") }
+      let(:user) { create(:user, spree_roles: [role]) }
+
+      before do
+        employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+        employee_type.update!(role: role)
+      end
+
+      after { SolidusAdvancedPricing::PriceType.find_by(code: "employee").update!(role: nil) }
+
+      # No price references this role directly -- only the `employee` type does. Without the
+      # union in PriceTypeCache.pricing_role_ids, this role gets narrowed away here and the
+      # customer never becomes eligible for that type's prices, even though they hold the role.
+      it "still carries that role" do
+        expect(described_class.from_context(context).customer_role_ids).to eq([role.id])
+      end
+    end
+
     it "clears the pinned price type so every type competes" do
       expect(described_class.from_context(double(current_spree_user: nil, current_store: store))
         .desired_attributes[:price_type_id]).to eq(:any)
