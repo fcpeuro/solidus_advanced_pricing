@@ -17,7 +17,15 @@ module SolidusAdvancedPricing
   # has landed, so nothing is discarded that a later slice was about to re-create.
   # The cost there is a window, between the first slice and the last, in which
   # both the old and the new prices exist.
-  class PriceBatchJob < ::Spree::BaseJob
+  # Inherits ActiveJob::Base rather than Spree::BaseJob: that class was added to
+  # Solidus after 4.5 and is not in any released version, while this gem still
+  # supports >= 4.5. The two behaviours it would have brought are repeated below.
+  class PriceBatchJob < ActiveJob::Base
+    # A slice writing many prices at once is a plausible deadlock victim.
+    retry_on ActiveRecord::Deadlocked
+
+    # Nothing to do if the run was deleted before the job reached it.
+    discard_on ActiveJob::DeserializationError
     def perform(run_id)
       run = PriceBatchRun.find_by(id: run_id)
       return if run.nil? || run.status != "queued"
