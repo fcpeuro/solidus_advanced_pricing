@@ -1,0 +1,7 @@
+<td><%= price.price_type&.name %></td>
+<td><%= price.role&.name || t('solidus_advanced_pricing.all_customers') %></td>
+<td>
+  <% if price.valid_from || price.valid_to %>
+    <%= [price.valid_from&.to_date, price.valid_to&.to_date].map { |d| d || '—' }.join(' → ') %>
+  <% end %>
+</td>

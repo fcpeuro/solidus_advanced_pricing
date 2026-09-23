@@ -1,0 +1,31 @@
+<% admin_breadcrumb(plural_resource_name(SolidusAdvancedPricing::PriceType)) %>
+
+<% content_for :page_actions do %>
+  <li>
+    <%= link_to t('spree.actions.new'), spree.new_admin_price_type_path, class: 'btn btn-primary' %>
+  </li>
+<% end %>
+
+<table class="index">
+  <thead>
+    <tr>
+      <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:name) %></th>
+      <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:code) %></th>
+      <th><%= SolidusAdvancedPricing::PriceType.human_attribute_name(:position) %></th>
+      <th class="actions"></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @collection.each do |price_type| %>
+      <tr id="<%= spree_dom_id price_type %>">
+        <td><%= price_type.name %></td>
+        <td><%= price_type.code %></td>
+        <td><%= price_type.position %></td>
+        <td class="actions">
+          <%= link_to_edit price_type, no_text: true %>
+          <%= link_to_delete price_type, no_text: true %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

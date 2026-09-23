@@ -1,0 +1,44 @@
+# Sample localization file for English. Add more files in this directory for other locales.
+# See https://github.com/svenfuchs/rails-i18n/tree/master/rails%2Flocale for starting points.
+
+en:
+  hello: Hello world
+  solidus_advanced_pricing:
+    price_types: "Price Types"
+    all_customers: "All customers"
+    role_hint: "Leave blank for all customers. A price type name alone grants no access control — an employee-only price needs this field set."
+    admin_notes_hint: "Internal only. Never shown to customers."
+    validity: "Validity"
+  solidus_admin:
+    menu_item:
+      price_types: "Price Types"
+    price_types:
+      title: "Price Types"
+      destroy:
+        success: "Price types were successfully removed."
+  activerecord:
+    models:
+      solidus_advanced_pricing/price_type:
+        one: "Price Type"
+        other: "Price Types"
+    attributes:
+      spree/price:
+        price_type_id: "Price Type"
+        role_id: "Visible to role"
+        valid_from: "Valid from"
+        valid_to: "Valid to"
+        admin_notes: "Admin notes"
+    errors:
+      models:
+        solidus_advanced_pricing/price_type:
+          attributes:
+            base:
+              referenced_by_prices: "This price type is still used by one or more prices and cannot be deleted. Retire it instead."
+        spree/price:
+          attributes:
+            valid_to:
+              must_be_after_valid_from: "must be after the valid from date"
+        spree/role:
+          attributes:
+            base:
+              referenced_by_prices: "This role is used to target one or more prices and cannot be deleted."

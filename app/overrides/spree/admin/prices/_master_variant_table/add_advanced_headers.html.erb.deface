@@ -1,0 +1,4 @@
+<!-- insert_before "[data-hook='master_prices_header'] th.actions" -->
+<th><%= SolidusAdvancedPricing::PriceType.model_name.human %></th>
+<th><%= Spree::Price.human_attribute_name(:role_id) %></th>
+<th><%= t('solidus_advanced_pricing.validity') %></th>

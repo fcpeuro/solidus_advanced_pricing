@@ -1,0 +1,86 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 4" # every Thursday
+
+concurrency:
+  group: test-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  rspec:
+    name: Solidus ${{ matrix.solidus-branch }}, Rails ${{ matrix.rails-version }} and Ruby ${{ matrix.ruby-version }} on ${{ matrix.database }}
+    runs-on: ubuntu-24.04
+    strategy:
+      # false so one bad cell reports the whole matrix instead of cancelling the other
+      # 44 jobs -- version-specific breakage was surfacing one cell per round trip.
+      fail-fast: false
+      matrix:
+        rails-version:
+          - "7.0"
+          - "7.1"
+          - "7.2"
+        ruby-version:
+          - "3.1"
+          - "3.4"
+        solidus-branch:
+          - "v4.5"
+        database:
+          - "postgresql"
+          - "mysql"
+          - "sqlite"
+        exclude:
+          - ruby-version: "3.4"
+            rails-version: "7.0"
+    env:
+      CODECOV_COVERAGE_PATH: ./coverage/coverage.xml
+    # ubuntu-24.04 ships no running database, and solidusio/test-solidus-extension
+    # installs only client headers -- the caller must supply the servers.
+    # Credentials match the action's DB_HOST/DB_USERNAME (127.0.0.1, root/postgres,
+    # no password). Both start on every leg; sqlite ones simply ignore them.
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run extension tests
+        uses: solidusio/test-solidus-extension@main
+        with:
+          database: ${{ matrix.database }}
+          rails-version: ${{ matrix.rails-version }}
+          ruby-version: ${{ matrix.ruby-version }}
+          solidus-branch: ${{ matrix.solidus-branch }}
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ env.CODECOV_COVERAGE_PATH }}

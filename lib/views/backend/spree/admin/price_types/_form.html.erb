@@ -1,0 +1,20 @@
+<div class="row">
+  <div class="col-6">
+    <%= f.field_container :name do %>
+      <%= f.label :name %>
+      <%= f.text_field :name, class: 'fullwidth' %>
+    <% end %>
+  </div>
+  <div class="col-6">
+    <%= f.field_container :code do %>
+      <%= f.label :code %>
+      <%= f.text_field :code, class: 'fullwidth' %>
+    <% end %>
+  </div>
+  <div class="col-6">
+    <%= f.field_container :position do %>
+      <%= f.label :position %>
+      <%= f.number_field :position, class: 'fullwidth' %>
+    <% end %>
+  </div>
+</div>

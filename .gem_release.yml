@@ -1,0 +1,5 @@
+bump:
+  recurse: false
+  file: 'lib/solidus_advanced_pricing/version.rb'
+  message: Bump SolidusAdvancedPricing to %{version}
+  tag: true

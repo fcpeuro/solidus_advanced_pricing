@@ -1,0 +1,9 @@
+<% admin_breadcrumb(link_to plural_resource_name(SolidusAdvancedPricing::PriceType), spree.admin_price_types_path) %>
+<% admin_breadcrumb(@price_type.name) %>
+
+<%= form_for @price_type, as: :price_type, url: spree.admin_price_type_path(@price_type) do |f| %>
+  <fieldset class="no-border-top">
+    <%= render 'form', f: f %>
+    <%= render 'spree/admin/shared/edit_resource_links' %>
+  </fieldset>
+<% end %>
