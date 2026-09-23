@@ -48,4 +48,27 @@ RSpec.feature "the admin price form" do
 
     expect(page).to have_field("price_price_type_id", disabled: true)
   end
+
+  scenario "keeps the time component of a validity window" do
+    visit spree.edit_admin_product_price_path(product, price)
+
+    expect(page).to have_css("input[type='datetime-local']#price_valid_from")
+
+    fill_in "price_valid_from", with: "2026-06-15T14:30"
+    fill_in "price_valid_to", with: "2026-06-20T09:45"
+    click_button "Update"
+
+    price.reload
+    expect(price.valid_from.strftime("%Y-%m-%d %H:%M")).to eq("2026-06-15 14:30")
+    expect(price.valid_to.strftime("%Y-%m-%d %H:%M")).to eq("2026-06-20 09:45")
+  end
+
+  scenario "round-trips an existing time back into the field" do
+    price.update!(valid_from: Time.zone.parse("2026-03-01 08:15"))
+
+    visit spree.edit_admin_product_price_path(product, price)
+
+    # Rails renders datetime-local with seconds.
+    expect(page).to have_field("price_valid_from", with: "2026-03-01T08:15:00")
+  end
 end
