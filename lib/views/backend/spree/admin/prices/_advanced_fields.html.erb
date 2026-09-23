@@ -6,7 +6,7 @@
                               SolidusAdvancedPricing::PriceType.ordered,
                               :id, :name,
                               { include_blank: t('solidus_advanced_pricing.base_price') },
-                              { class: 'custom-select fullwidth' } %>
+                              { class: 'custom-select fullwidth', disabled: !f.object.new_record? } %>
       <span class="field-hint"><%= t('solidus_advanced_pricing.price_type_hint') %></span>
     <% end %>
   </div>
