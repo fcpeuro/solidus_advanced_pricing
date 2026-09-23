@@ -41,6 +41,10 @@ en:
               referenced_by_prices: "This price type is still used by one or more prices and cannot be deleted. Retire it instead."
         spree/price:
           attributes:
+            price_type_id:
+              cannot_be_changed: "cannot be changed once the price exists. Discard this price and create a new one with the right type."
+              ambiguous_price_type: "cannot be given as both price_type_id and price_type_code. Send one or the other."
+              unknown_code: "no price type with code %{code}"
             valid_to:
               must_be_after_valid_from: "must be after the valid from date"
         spree/role:

@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Write endpoints for prices.** `POST`, `PATCH` and `DELETE` on
+  `/api/variants/:variant_id/prices`, so prices can be administered over the API rather
+  than only read. `DELETE` soft-deletes.
+- **`price_type_code` is accepted anywhere `price_type_id` is** on a price payload. Ids
+  are per-database and codes are not, so a payload written against staging works unchanged
+  against production. Sending both is a `422`; an explicit null means the untyped base
+  price.
+- **`GET /api/price_types`**, listing the types a price payload may reference with their
+  ids, codes, names, positions and default roles. Read-only and admin-authorized.
+- `currency` now defaults to `Spree::Config.default_pricing_options.currency` when a
+  created price omits it.
+
+### Fixed
+
+- **`GET /api/variants/:variant_id/prices` listed soft-deleted prices.**
+  `Spree::Variant#prices` is declared `-> { with_discarded }` in core, which the endpoint
+  inherited, so anything an admin had deleted still came back. Deleted prices are now
+  excluded by default; `?show_deleted=true` opts back in.
+
+### Changed
+
+- **`price_type` is now immutable on a persisted price**, raising a validation error
+  instead of silently retyping the row. The admin form has disabled that select since
+  0.2.0; this closes the same gap at the model layer so the API cannot route around it.
+  Re-sending an unchanged `price_type_id` is still fine. Code that deliberately retypes an
+  existing price must now discard it and create a replacement, or use `update_columns` to
+  bypass validation in a data migration.
+
 ## [0.2.0] - 2026-09-23
 
 ### Added

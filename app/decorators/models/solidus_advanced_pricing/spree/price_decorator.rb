@@ -23,6 +23,7 @@ module SolidusAdvancedPricing
           optional: true
 
         base.validate :valid_to_after_valid_from
+        base.validate :price_type_is_immutable
 
         # valid_to is exclusive so a window ending at midnight and the next one starting at midnight do not both match.
         base.scope :valid_at, ->(time) {
@@ -62,6 +63,17 @@ module SolidusAdvancedPricing
       end
 
       private
+
+      # The admin form has disabled this select on persisted records since 0.2.0;
+      # the API would otherwise be a way around that. Retyping an existing row
+      # reinterprets history rather than correcting it -- the fix for a
+      # mistyped price is to discard it and create the right one.
+      def price_type_is_immutable
+        return if new_record?
+        return unless price_type_id_changed?
+
+        errors.add(:price_type_id, :cannot_be_changed)
+      end
 
       def valid_to_after_valid_from
         return if valid_from.blank? || valid_to.blank?

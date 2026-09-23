@@ -302,21 +302,72 @@ against pre-1.0 `solidus_admin` internals (`SolidusAdmin::UI::Pages::Index::Comp
 ## API
 
 ```
-GET /api/variants/:variant_id/prices
-GET /api/variants/:variant_id/prices/:id
+GET    /api/variants/:variant_id/prices
+GET    /api/variants/:variant_id/prices/:id
+POST   /api/variants/:variant_id/prices
+PATCH  /api/variants/:variant_id/prices/:id
+DELETE /api/variants/:variant_id/prices/:id
+
+GET    /api/price_types
 ```
 
 Each price is serialized with its advanced attributes — `price_type_code`,
 `price_type_name`, `role_id`, `valid_from`, `valid_to` — and `admin_notes` is included
 only for a caller who can update that price.
 
-**This endpoint is admin-facing.** Core's `DefaultCustomer` permission set (what every
+**These endpoints are admin-facing.** Core's `DefaultCustomer` permission set (what every
 non-admin API token gets) grants no rights on `Spree::Price` at all, so a non-admin
 token receives `401 Unauthorized` on the whole endpoint, not a filtered response.
 Headless storefronts do not need this endpoint for normal pricing: core's variants
 endpoint already serializes `price` and `display_price` through this gem's selector
 automatically, because the selector is registered globally via
 `Spree::Config.variant_price_selector_class`.
+
+### Writing prices
+
+```shell
+curl -X POST https://store.example/api/variants/42/prices \
+  -H "Authorization: Bearer $SPREE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"price": {"amount": "35.00", "price_type_code": "sale",
+                 "valid_from": "2026-11-27T00:00:00Z",
+                 "valid_to": "2026-12-02T00:00:00Z"}}'
+```
+
+- **`price_type_code` is accepted anywhere `price_type_id` is**, and is the better choice
+  for anything scripted: ids differ between your staging and production databases, codes
+  do not. Sending both is a `422`. Sending `price_type_code: null` (or `""`) means the
+  untyped base price, the same as omitting `price_type_id`.
+- **`currency` defaults to `Spree::Config.default_pricing_options.currency`** when the
+  payload omits it.
+- **`price_type` cannot be changed once a price exists.** The admin form has disabled that
+  select on persisted prices since 0.2.0, and the model now enforces it, so the API can't
+  route around it. Retyping a row reinterprets history instead of correcting it; to fix a
+  mistyped price, delete it and create the right one. Re-sending the *same*
+  `price_type_id` on an update is fine, so ordinary read-modify-write clients are
+  unaffected.
+- **`DELETE` soft-deletes** (sets `deleted_at`), so the row stays available to anything
+  reporting on what a variant used to cost. Deleted prices are excluded from the listing;
+  pass `?show_deleted=true` to include them. Writes never reach a deleted price — updating
+  one is a `404`.
+
+Remember that the selector takes the **cheapest** eligible price
+([how a price is chosen](#how-a-price-is-chosen)). A role-targeted price written *above*
+the untargeted price will never apply, and the API will not warn you about it.
+
+Nothing here stops you deleting a variant's only open-ended price, which leaves that
+variant unpriced outside its remaining windows (see
+[Backward compatibility](#backward-compatibility)). If that matters to your store, assert
+it on your side.
+
+### Reading price types
+
+`GET /api/price_types` lists the types a price payload may reference — `id`, `code`,
+`name`, `position` and the type's default `role_id` — in `position` order. Retired
+(discarded) types are omitted, since they are no longer a valid choice; historical prices
+still report their own type's code through the prices endpoints. The endpoint is
+read-only and admin-authorized: creating a pricing dimension is an admin act, not an API
+one.
 
 ## Storefront: compare-at (strikethrough) pricing
 

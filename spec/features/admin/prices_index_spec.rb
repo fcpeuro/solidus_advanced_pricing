@@ -9,7 +9,12 @@ RSpec.feature "the admin prices index" do
   let(:product) { create(:product, price: 100) }
 
   scenario "showing type and role for each price" do
-    product.master.default_price.update!(
+    # A typed price is created alongside the base price rather than by retyping
+    # it: price_type is immutable once a price exists, so retyping is not
+    # something a store can actually do.
+    product.master.prices.create!(
+      amount: 80,
+      currency: product.master.default_price.currency,
       price_type: SolidusAdvancedPricing::PriceType.find_by(code: "wholesale"),
       role: wholesale_role
     )
