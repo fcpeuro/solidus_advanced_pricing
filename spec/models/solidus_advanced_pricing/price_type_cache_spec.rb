@@ -45,4 +45,55 @@ RSpec.describe SolidusAdvancedPricing::PriceTypeCache do
       expect(described_class.id_for("not-a-real-code")).to be_nil
     end
   end
+
+  describe ".role_id_for" do
+    it "returns nil for a type with no default role" do
+      sale = SolidusAdvancedPricing::PriceType.find_by(code: "sale")
+      expect(described_class.role_id_for(sale.id)).to be_nil
+    end
+
+    it "returns the type's default role id" do
+      role = create(:role, name: "employee")
+      employee = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+      employee.update!(role: role)
+      described_class.clear
+      expect(described_class.role_id_for(employee.id)).to eq(role.id)
+    ensure
+      employee&.update!(role: nil)
+    end
+
+    it "still resolves a retired type's default role" do
+      role = create(:role, name: "employee")
+      employee = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+      employee.update!(role: role)
+      employee.discard
+      described_class.clear
+      expect(described_class.role_id_for(employee.id)).to eq(role.id)
+    ensure
+      employee&.update!(role: nil)
+    end
+
+    it "returns nil for an unknown id" do
+      expect(described_class.role_id_for(-1)).to be_nil
+    end
+  end
+
+  describe ".pricing_role_ids" do
+    it "includes a role that appears only as a price type's default, not on any price" do
+      role = create(:role, name: "employee")
+      employee = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+      employee.update!(role: role)
+      described_class.clear
+      expect(described_class.pricing_role_ids).to include(role.id)
+    ensure
+      employee&.update!(role: nil)
+    end
+
+    it "includes a role that appears only on a price" do
+      role = create(:role, name: "wholesale")
+      create(:price, role: role)
+      described_class.clear
+      expect(described_class.pricing_role_ids).to include(role.id)
+    end
+  end
 end

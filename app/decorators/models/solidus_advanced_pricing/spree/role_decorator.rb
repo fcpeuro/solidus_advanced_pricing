@@ -12,7 +12,9 @@ module SolidusAdvancedPricing
       private
 
       def prevent_destroying_referenced_role
-        return unless ::Spree::Price.with_discarded.exists?(role_id: id)
+        referenced = ::Spree::Price.with_discarded.exists?(role_id: id) ||
+          SolidusAdvancedPricing::PriceType.with_discarded.exists?(role_id: id)
+        return unless referenced
 
         errors.add(:base, :referenced_by_prices)
         throw :abort

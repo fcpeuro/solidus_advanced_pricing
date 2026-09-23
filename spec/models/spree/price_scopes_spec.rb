@@ -37,6 +37,29 @@ RSpec.describe Spree::Price do
     it "returns both for a customer holding the role" do
       expect(described_class.visible_to_roles([role.id]).where(id: candidates)).to contain_exactly(untargeted, targeted)
     end
+
+    describe "a price type's default role" do
+      let(:typed_role) { create(:role, name: "employee") }
+      let(:employee_type) { create(:price_type, role: typed_role) }
+      let!(:type_defaulted) { create(:price, variant: variant, role: nil, price_type: employee_type) }
+      let(:type_candidates) { [untargeted, type_defaulted] }
+
+      it "excludes a price whose type carries a default role, for a guest" do
+        expect(described_class.visible_to_roles([]).where(id: type_candidates)).to contain_exactly(untargeted)
+      end
+
+      it "includes it for a customer holding the type's default role" do
+        expect(described_class.visible_to_roles([typed_role.id]).where(id: type_candidates))
+          .to contain_exactly(untargeted, type_defaulted)
+      end
+
+      it "still applies the default role after the type is retired" do
+        employee_type.discard
+        expect(described_class.visible_to_roles([typed_role.id]).where(id: type_candidates))
+          .to contain_exactly(untargeted, type_defaulted)
+        expect(described_class.visible_to_roles([]).where(id: type_candidates)).to contain_exactly(untargeted)
+      end
+    end
   end
 
   describe ".for_price_type" do

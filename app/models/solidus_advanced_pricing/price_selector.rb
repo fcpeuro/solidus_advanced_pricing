@@ -49,7 +49,9 @@ module SolidusAdvancedPricing
     end
 
     def visible_to?(price, customer_role_ids)
-      price.role_id.nil? || customer_role_ids.include?(price.role_id)
+      effective = price.effective_role_id
+
+      effective.nil? || customer_role_ids.include?(effective)
     end
 
     # Country is specificity, not competition: a country-specific price beats the

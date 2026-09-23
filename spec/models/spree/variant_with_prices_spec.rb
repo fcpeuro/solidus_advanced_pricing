@@ -36,4 +36,30 @@ RSpec.describe Spree::Variant, ".with_prices" do
       described_class.with_prices(options(customer_role_ids: [wholesale_role.id]))
     ).to include(variant)
   end
+
+  it "excludes a variant whose only price inherits a role from its price type, for a guest" do
+    employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+    employee_type.update!(role: wholesale_role)
+    variant = create(:variant)
+    variant.prices.destroy_all
+    variant.prices.create!(currency: "USD", amount: 100, price_type: employee_type, role: nil)
+
+    expect(described_class.with_prices(options)).not_to include(variant)
+  ensure
+    employee_type&.update!(role: nil)
+  end
+
+  it "includes that variant for a customer holding the type's default role" do
+    employee_type = SolidusAdvancedPricing::PriceType.find_by(code: "employee")
+    employee_type.update!(role: wholesale_role)
+    variant = create(:variant)
+    variant.prices.destroy_all
+    variant.prices.create!(currency: "USD", amount: 100, price_type: employee_type, role: nil)
+
+    expect(
+      described_class.with_prices(options(customer_role_ids: [wholesale_role.id]))
+    ).to include(variant)
+  ensure
+    employee_type&.update!(role: nil)
+  end
 end

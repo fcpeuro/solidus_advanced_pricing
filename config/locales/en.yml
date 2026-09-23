@@ -8,7 +8,8 @@ en:
     all_customers: "All customers"
     base_price: "Base price (no type)"
     price_type_hint: "Leave as Base price for the standard price. A type is a label for the admin and reporting — it grants no eligibility on its own."
-    role_hint: "Leave blank for all customers. A price type name alone grants no access control — an employee-only price needs this field set."
+    role_hint: "Leave blank to inherit the price type's default role, if it has one; otherwise visible to all customers. A price type name alone grants no access control — an employee-only price needs this field, or the type, set."
+    price_type_role_hint: "Prices of this type default to this role unless a price sets its own. Leaving a price's own role blank means it inherits this default — it does not make that price public."
     admin_notes_hint: "Internal only. Never shown to customers."
     validity: "Validity"
   solidus_admin:
@@ -24,6 +25,8 @@ en:
         one: "Price Type"
         other: "Price Types"
     attributes:
+      solidus_advanced_pricing/price_type:
+        role_id: "Default role"
       spree/price:
         price_type_id: "Price Type"
         role_id: "Visible to role"
@@ -43,4 +46,4 @@ en:
         spree/role:
           attributes:
             base:
-              referenced_by_prices: "This role is used to target one or more prices and cannot be deleted."
+              referenced_by_prices: "This role is used to target one or more prices or price types and cannot be deleted."

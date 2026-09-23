@@ -30,8 +30,23 @@ module SolidusAdvancedPricing
             .where(arel_table[:valid_to].eq(nil).or(arel_table[:valid_to].gt(time)))
         }
 
+        # Tests the *effective* role (price's own role_id, falling back to its
+        # type's) via COALESCE over a LEFT JOIN, not just the price's column —
+        # a price whose type carries a default role must be excluded from a
+        # guest's listing even though the price row itself has role_id: nil.
+        # left_joins(:price_type) does not apply PriceType's `kept` default
+        # scope (verified empirically), so a retired type's default role still
+        # applies to its historical prices.
         base.scope :visible_to_roles, ->(role_ids) {
-          where(role_id: [nil, *role_ids])
+          price_types_table = SolidusAdvancedPricing::PriceType.arel_table
+          effective_role_id = Arel::Nodes::NamedFunction.new(
+            "COALESCE", [arel_table[:role_id], price_types_table[:role_id]]
+          )
+
+          condition = effective_role_id.eq(nil)
+          condition = condition.or(effective_role_id.in(role_ids)) if role_ids.present?
+
+          left_joins(:price_type).where(condition)
         }
 
         base.scope :for_price_type, ->(price_type) {
@@ -39,6 +54,11 @@ module SolidusAdvancedPricing
         }
 
         base.after_commit { SolidusAdvancedPricing::PriceTypeCache.clear }
+      end
+
+      # nil on the price means "inherit from the type", not "public".
+      def effective_role_id
+        role_id || SolidusAdvancedPricing::PriceTypeCache.role_id_for(price_type_id)
       end
 
       private

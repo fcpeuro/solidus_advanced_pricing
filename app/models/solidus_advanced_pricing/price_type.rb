@@ -21,6 +21,8 @@ module SolidusAdvancedPricing
       foreign_key: :price_type_id,
       inverse_of: :price_type
 
+    belongs_to :role, class_name: "::Spree::Role", optional: true
+
     # Not `dependent: :restrict_with_error` — that check is default-scoped and
     # misses discarded prices, which then trip the FK on DELETE.
     before_destroy :prevent_destroying_referenced_type
