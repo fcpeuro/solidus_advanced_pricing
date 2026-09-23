@@ -13,8 +13,24 @@ module SolidusAdvancedPricing
     # general-purpose extension but does need somewhere to stand.
     attr_accessor :batch_guard
 
+    # Largest payload the asynchronous endpoint will accept. Bounded because the
+    # payload is stored whole, in one column, and shipped in one request --
+    # neither of which stops being true just because a job applies it.
+    attr_writer :async_batch_row_limit
+
+    # How many rows the asynchronous runner applies per committed slice.
+    attr_writer :batch_slice_size
+
     def batch_row_limit
       @batch_row_limit ||= 500
+    end
+
+    def async_batch_row_limit
+      @async_batch_row_limit ||= 50_000
+    end
+
+    def batch_slice_size
+      @batch_slice_size ||= 500
     end
   end
 

@@ -9,6 +9,9 @@ Spree::Core::Engine.routes.draw do
     # Not nested under a variant: a batch spans variants, which is the point of it.
     post "prices/batch", to: "price_batches#create", as: :price_batch
 
+    # The same work, handed to a job, for a payload too large to apply in a request.
+    resources :price_batches, only: [:create, :show], controller: "price_batch_runs"
+
     # Read-only: a client building a price payload needs the codes and ids, but
     # creating a pricing dimension is an admin act, not an API one.
     resources :price_types, only: [:index]

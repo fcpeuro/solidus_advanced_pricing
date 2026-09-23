@@ -487,6 +487,73 @@ background job.
 prices by more than X%" — which does not belong in a general-purpose extension but does
 need somewhere to stand where it can see the finished picture and still stop it.
 
+### Batch writes, asynchronously
+
+```
+POST /api/price_batches      -> 202 with the run
+GET  /api/price_batches/:id  -> its status, then its outcome
+```
+
+Same payload as `POST /api/prices/batch`, handed to an ActiveJob instead of applied in the
+request. Use it when the payload is larger than `batch_row_limit`. The `POST` answers
+`202 Accepted` immediately and applies nothing; poll the `GET` until `status` is
+`completed` or `failed`.
+
+```json
+{
+  "id": 12, "status": "running", "mode": "upsert", "dry_run": false,
+  "total_rows": 20000, "processed_rows": 6500, "started_at": "2026-09-23T21:04:11Z"
+}
+```
+
+Once finished it also carries `summary`, `results` and `results_truncated`. **`results`
+holds only the rows worth acting on** — `error` and `deleted` — capped at 1,000, with
+`results_truncated` saying whether that cap bit. Reporting every outcome for a payload this
+size would store megabytes nobody reads; `summary` counts the rest.
+
+Requires a working ActiveJob queue. Running inline (`:async` or `:inline` adapters) works
+but gives up the point of the endpoint.
+
+#### What slicing costs
+
+The runner applies the payload in committed slices of
+`SolidusAdvancedPricing.config.batch_slice_size` (default 500). That is the only way to
+avoid holding one transaction open across the whole payload, and it costs two of the
+synchronous endpoint's guarantees:
+
+- **The run is not atomic.** Each slice commits on its own, so a run that dies partway
+  leaves the slices before it applied. The status goes to `failed`, `failure_reason` says
+  why, and the report covers how far it got — but nothing is rolled back. Re-submitting is
+  safe: matching on the natural key or `id` means the slices that already landed come back
+  as `unchanged`.
+- **`batch_guard` sees the run so far, not the finished picture**, and is called once per
+  slice. It can stop a run from continuing; it cannot unmake slices already committed. A
+  rule that needs the whole payload before deciding belongs on the synchronous endpoint,
+  or in a `dry_run` pass first.
+
+`replace` **keeps** its meaning: the deletion pass is deferred until every slice has
+landed, so nothing is discarded that a later slice was about to re-create. The cost there
+is a window, between the first slice and the last, in which both old and new prices exist
+and the selector can see them.
+
+#### Sizing it
+
+```ruby
+SolidusAdvancedPricing.configure do |config|
+  config.async_batch_row_limit = 50_000 # default
+  config.batch_slice_size = 500         # default
+end
+```
+
+`async_batch_row_limit` is bounded rather than unlimited because the payload still arrives
+in one HTTP request and is stored whole in one column — neither of which stops being true
+because a job applies it. On MySQL that column is `LONGTEXT`; the migration asks for it
+explicitly, since a plain `TEXT` is 64KB and truncates silently past it.
+
+For a payload beyond this limit — a first-time load of an entire catalogue, say — split it
+client-side, or skip HTTP altogether and drive `SolidusAdvancedPricing::PriceBatch` from a
+rake task in your own app.
+
 ### Reading price types
 
 `GET /api/price_types` lists the types a price payload may reference — `id`, `code`,

@@ -37,13 +37,21 @@ module SolidusAdvancedPricing
       end
     end
 
-    attr_reader :results, :mode
+    attr_reader :results, :mode, :touched_ids
 
-    def initialize(rows:, mode: "upsert", dry_run: false, row_limit: nil)
+    # `seen`, `guard` and `replacements` exist for the async runner, which feeds
+    # one payload through in slices. It threads a single `seen` hash across them
+    # so duplicate detection still spans the whole payload, suppresses the guard
+    # and the deletion pass per slice, and runs both itself once every slice is
+    # in. A synchronous caller should leave all three alone.
+    def initialize(rows:, mode: "upsert", dry_run: false, row_limit: nil, seen: nil, guard: true, replacements: true)
       @rows = Array(rows)
       @mode = mode.to_s
       @dry_run = ActiveModel::Type::Boolean.new.cast(dry_run) || false
       @row_limit = row_limit || SolidusAdvancedPricing.config.batch_row_limit
+      @seen = seen || {}
+      @guard = guard
+      @replacements = replacements
       @results = []
       @touched_ids = Hash.new { |hash, key| hash[key] = [] }
 
@@ -60,24 +68,43 @@ module SolidusAdvancedPricing
       # what it reports is what the write would actually do -- validations, type
       # casting and constraints included -- rather than a guess at it.
       ActiveRecord::Base.transaction do
-        seen = {}
-
         @rows.each_with_index do |row, index|
-          apply_row(row.to_h.symbolize_keys, index, seen)
+          apply_row(row.to_h.symbolize_keys, index, @seen)
         end
 
-        apply_replacements if replace?
+        apply_replacements if replace? && @replacements
 
         # The host app's veto, with every row already written and nothing
         # committed. Raising from here aborts the whole batch -- which is the
         # only place a "this moves too many prices too far" rule can see the
         # finished picture and still stop it.
-        SolidusAdvancedPricing.config.batch_guard&.call(self)
+        SolidusAdvancedPricing.config.batch_guard&.call(self) if @guard
 
         raise ActiveRecord::Rollback if dry_run?
       end
 
       self
+    end
+
+    # The deletion half of `replace`, as a standalone pass so the async runner
+    # can defer it until every slice has landed. Discards, and returns one
+    # Result per discarded price.
+    def self.discard_untouched(touched_ids, dry_run: false)
+      deleted = []
+
+      ActiveRecord::Base.transaction do
+        touched_ids.each do |(variant_id, price_type_id), kept_ids|
+          scope = ::Spree::Price.kept.where(variant_id: variant_id, price_type_id: price_type_id)
+          scope.where.not(id: kept_ids).each do |price|
+            price.discard
+            deleted << Result.new(index: nil, status: :deleted, price_id: price.id, variant_id: variant_id)
+          end
+        end
+
+        raise ActiveRecord::Rollback if dry_run
+      end
+
+      deleted
     end
 
     def summary
@@ -182,14 +209,9 @@ module SolidusAdvancedPricing
     # payload actually named, are in scope. A `replace` that named one sale
     # price must not reach the variant's base price or its wholesale tier.
     def apply_replacements
-      @touched_ids.each do |(variant_id, price_type_id), kept_ids|
-        stale = ::Spree::Price.kept.where(variant_id: variant_id, price_type_id: price_type_id).where.not(id: kept_ids)
-
-        stale.each do |price|
-          price.discard
-          @results << Result.new(index: nil, status: :deleted, price_id: price.id, variant_id: variant_id)
-        end
-      end
+      # Already inside this batch's transaction, so the nested one is a no-op
+      # savepoint and the dry-run rollback is the outer one's job.
+      @results.concat(self.class.discard_untouched(@touched_ids))
     end
 
     def resolve_variant(row)

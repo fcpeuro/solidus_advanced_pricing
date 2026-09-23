@@ -34,6 +34,23 @@ All notable changes to this project are documented here. The format is based on
   - `SolidusAdvancedPricing.config.batch_row_limit` (default 500) and
     `config.batch_guard`, a callable invoked with every row written and nothing committed,
     which may raise to abort. The seam for store policy that does not belong in the gem.
+- **Asynchronous batches: `POST /api/price_batches` and `GET /api/price_batches/:id`**,
+  backed by `SolidusAdvancedPricing::PriceBatchJob` and a new
+  `solidus_advanced_pricing_price_batch_runs` table. **Adds a migration** — re-run
+  `bin/rails railties:install:migrations FROM=solidus_advanced_pricing` when upgrading.
+  - The runner applies the payload in committed slices of `config.batch_slice_size`
+    (default 500), so a run is **not atomic**: one that dies partway leaves earlier slices
+    applied, reports `failed`, and keeps the partial report. Re-submitting is safe, since
+    the landed rows come back `unchanged`.
+  - `batch_guard` is called once per slice and sees the run so far rather than the finished
+    picture. It can stop a run continuing; it cannot unmake committed slices.
+  - `replace` keeps its meaning: the deletion pass is deferred until every slice has landed.
+  - Duplicate detection still spans the whole payload, not just a slice.
+  - `config.async_batch_row_limit` (default 50,000). The payload still arrives in one
+    request and is stored in one column, so it is bounded; on MySQL that column is
+    `LONGTEXT`, since a plain `TEXT` would truncate it silently.
+  - The finished report carries `error` and `deleted` rows only, capped at 1,000 with a
+    `results_truncated` flag; `summary` counts everything.
 - `currency` now defaults to `Spree::Config.default_pricing_options.currency` when a
   created price omits it.
 
