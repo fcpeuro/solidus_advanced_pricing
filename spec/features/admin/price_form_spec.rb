@@ -22,4 +22,18 @@ RSpec.feature "editing a price in the admin" do
     expect(price.role).to eq(wholesale_role)
     expect(price.admin_notes).to eq("Labor Day Sale 2026")
   end
+
+  scenario "leaves a price untyped when Base price is selected" do
+    visit spree.edit_admin_product_price_path(product, price)
+
+    select "Wholesale", from: "price_price_type_id"
+    click_button "Update"
+    expect(price.reload.price_type.code).to eq("wholesale")
+
+    visit spree.edit_admin_product_price_path(product, price)
+    select "Base price (no type)", from: "price_price_type_id"
+    click_button "Update"
+
+    expect(price.reload.price_type_id).to be_nil
+  end
 end

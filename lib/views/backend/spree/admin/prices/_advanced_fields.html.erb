@@ -5,8 +5,9 @@
       <%= f.collection_select :price_type_id,
                               SolidusAdvancedPricing::PriceType.ordered,
                               :id, :name,
-                              {},
+                              { include_blank: t('solidus_advanced_pricing.base_price') },
                               { class: 'custom-select fullwidth' } %>
+      <span class="field-hint"><%= t('solidus_advanced_pricing.price_type_hint') %></span>
     <% end %>
   </div>
 
