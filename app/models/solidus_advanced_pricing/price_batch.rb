@@ -18,9 +18,14 @@ module SolidusAdvancedPricing
     # existing price, not a different one.
     NATURAL_KEY = %i[variant_id currency country_iso price_type_id role_id valid_from].freeze
 
-    # Everything a matched row may change. Anything in the natural key is,
-    # by definition, how the row was found.
+    # Everything a natural-key row may change. Anything in the key is, by
+    # definition, how the row was found, so changing it there is incoherent.
     UPDATABLE = %i[amount valid_to admin_notes].freeze
+
+    # An `id` names the row outright, so nothing is off-limits except which
+    # variant it hangs off. `price_type_id` is listed but the model refuses to
+    # change it on a persisted price, which surfaces as an ordinary row error.
+    UPDATABLE_BY_ID = %i[amount currency country_iso price_type_id role_id valid_from valid_to admin_notes].freeze
 
     class TooManyRows < StandardError; end
 
@@ -83,42 +88,87 @@ module SolidusAdvancedPricing
 
     # Resolution happens outside the savepoint -- it touches no state, and a
     # `return` out of a transaction block is a trap worth not setting.
+    # Two ways to name a row, and `id` wins when it is there: it says exactly
+    # which price to change, with no key to assemble and no precision to lose.
+    #
+    # The natural key is what a payload authored somewhere that does not know
+    # Solidus ids -- a supplier feed, a merchandiser's spreadsheet, a backfill
+    # from another system -- has instead. It is also what makes such a payload
+    # re-runnable: without it, a nightly feed has no ids on its rows and would
+    # create a fresh duplicate of every price on every pass.
     def apply_row(row, index, seen)
-      variant = resolve_variant(row)
-      return record(index, :error, errors: ["variant: #{variant}"]) if variant.is_a?(String)
+      located = row[:id].present? ? locate_by_id(row) : locate_by_key(row)
+      return record(index, :error, errors: [located]) if located.is_a?(String)
+
+      price, variant_id, price_type_id, dedup, attributes = located
+
+      if seen.key?(dedup)
+        return record(index, :error, variant_id: variant_id,
+          errors: ["duplicate of row #{seen[dedup]}: #{duplicate_reason(dedup)}"])
+      end
+      seen[dedup] = index
+
+      persist(index, price, variant_id, price_type_id, attributes)
+    end
+
+    def duplicate_reason(dedup)
+      if dedup.first == :id
+        "same price id"
+      else
+        "same variant, currency, country, price type, role and valid_from"
+      end
+    end
+
+    def locate_by_id(row)
+      price = ::Spree::Price.kept.find_by(id: row[:id])
+      return "no price with id #{row[:id]}" if price.nil?
+
+      variant = resolve_variant(row) unless row[:variant_id].blank? && row[:sku].blank?
+      return "variant: #{variant}" if variant.is_a?(String)
+      if variant && variant.id != price.variant_id
+        return "price #{price.id} belongs to variant #{price.variant_id}, not #{variant.id}"
+      end
 
       price_type_id = resolve_price_type_id(row)
-      if price_type_id.is_a?(String)
-        return record(index, :error, variant_id: variant.id, errors: ["price_type: #{price_type_id}"])
-      end
+      return "price_type: #{price_type_id}" if price_type_id.is_a?(String)
+
+      attributes = row.slice(*UPDATABLE_BY_ID)
+      attributes[:price_type_id] = price_type_id if row.key?(:price_type_code)
+
+      [price, price.variant_id, price.price_type_id, [:id, price.id], attributes]
+    end
+
+    def locate_by_key(row)
+      variant = resolve_variant(row)
+      return "variant: #{variant}" if variant.is_a?(String)
+
+      price_type_id = resolve_price_type_id(row)
+      return "price_type: #{price_type_id}" if price_type_id.is_a?(String)
 
       key = natural_key(row, variant, price_type_id)
+      price = find_existing(key) || ::Spree::Price.new(key)
 
-      if seen.key?(key)
-        return record(index, :error, variant_id: variant.id,
-          errors: ["duplicate of row #{seen[key]}: same variant, currency, country, price type, role and valid_from"])
-      end
-      seen[key] = index
+      [price, variant.id, price_type_id, [:key, key], row.slice(*UPDATABLE)]
+    end
 
-      # Each row gets its own savepoint: one bad row must not poison the batch,
-      # and on PostgreSQL a raised constraint error would otherwise abort every
-      # statement that follows it in the transaction.
+    # Each row gets its own savepoint: one bad row must not poison the batch,
+    # and on PostgreSQL a raised constraint error would otherwise abort every
+    # statement that follows it in the transaction.
+    def persist(index, price, variant_id, price_type_id, attributes)
       ActiveRecord::Base.transaction(requires_new: true) do
-        price = find_existing(key) || ::Spree::Price.new(key)
         existing = price.persisted?
-
-        price.assign_attributes(row.slice(*UPDATABLE))
+        price.assign_attributes(attributes)
 
         if existing && !price.changed?
-          touch(variant.id, price_type_id, price.id)
-          record(index, :unchanged, price_id: price.id, variant_id: variant.id)
+          touch(variant_id, price_type_id, price.id)
+          record(index, :unchanged, price_id: price.id, variant_id: variant_id)
         elsif price.save
-          touch(variant.id, price_type_id, price.id)
-          record(index, existing ? :updated : :created, price_id: reportable_id(price), variant_id: variant.id)
+          touch(variant_id, price.price_type_id, price.id)
+          record(index, existing ? :updated : :created, price_id: reportable_id(price), variant_id: variant_id)
         else
           # Recorded before the rollback on purpose: @results is a Ruby array,
           # so the savepoint unwinding the row does not unwind the report of it.
-          record(index, :error, variant_id: variant.id, errors: price.errors.full_messages)
+          record(index, :error, variant_id: variant_id, errors: price.errors.full_messages)
           raise ActiveRecord::Rollback
         end
       end

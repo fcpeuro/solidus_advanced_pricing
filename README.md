@@ -379,7 +379,8 @@ curl -X POST https://store.example/api/prices/batch \
         "dry_run": true,
         "prices": [
           {"sku": "ABC-123", "amount": "35.00", "price_type_code": "sale"},
-          {"sku": "DEF-456", "amount": "45.00", "price_type_code": "sale"}
+          {"sku": "DEF-456", "amount": "45.00", "price_type_code": "sale"},
+          {"id": 907, "amount": "29.99"}
         ]
       }'
 ```
@@ -396,23 +397,47 @@ curl -X POST https://store.example/api/prices/batch \
 }
 ```
 
-Each row takes the same attributes as a single price, plus `sku` as an alternative to
-`variant_id` (give one, not both). Per-row `status` is `created`, `updated`, `unchanged`,
-`deleted` or `error`; an `error` row carries `errors` and nothing was written for it.
+Each row takes the same attributes as a single price, plus `id` and `sku`. Per-row
+`status` is `created`, `updated`, `unchanged`, `deleted` or `error`; an `error` row carries
+`errors` and nothing was written for it.
 
-#### The natural key
+**Send it as JSON.** Form encoding cannot represent an array of hashes whose rows have
+different keys — Rack starts a new hash only when it meets a key it has already seen, so
+`[{"id": 1, "amount": 2}, {"variant_id": 3, "amount": 4}]` arrives as
+`[{"id": 1, "amount": 2, "variant_id": 3}, {"amount": 4}]`. Set
+`Content-Type: application/json`.
 
-A row is matched against existing prices on **variant, currency, country, price type, role
-and `valid_from`**. Those are the dimensions a price legitimately varies on, so re-sending
-the same payload is a no-op rather than a pile of duplicates. `valid_to` is deliberately
-*not* in the key: extending or shortening a window edits the price you already have.
+#### Naming a row: `id`, or the natural key
 
-`valid_from` is matched to the second. A client that read a price back and re-sent its
-`valid_from` may have dropped the sub-second part in serialization, and treating that as a
-different price would duplicate the row — and under `replace`, discard the original.
+**If a row carries `id`, that is the price it changes** — nothing is inferred, nothing can
+be mismatched, and `variant_id`/`sku` become optional (the price already knows its
+variant; supply one and it is checked, not applied). An `id` that does not exist, or that
+has been deleted, is an `error` on that row rather than a new price. This is the right
+shape for read-modify-write: fetch the prices, change what you need, send them back.
 
-Two rows in one payload that resolve to the same key are an `error` on the second, not a
-silent last-one-wins.
+**Without an `id`, the row is matched on the natural key** — variant, currency, country,
+price type, role and `valid_from`. Those are the dimensions a price legitimately varies
+on, so an upsert on them is unambiguous, and re-sending the same payload is a no-op rather
+than a pile of duplicates.
+
+That second path is not redundant with the first. A payload authored where Solidus ids are
+unknown — a supplier feed, a merchandiser's spreadsheet, a backfill from another system —
+has no ids to send, and `id`-or-create alone would make every re-run duplicate the whole
+file. The natural key is what makes a nightly feed idempotent.
+
+`valid_to` is deliberately *not* in the key: extending or shortening a window edits the
+price you already have. `valid_from` is matched to the second, because a client that read a
+price back and re-sent its `valid_from` may have dropped the sub-second part in
+serialization, and treating that as a different price would duplicate the row — and under
+`replace`, discard the original. Sending the `id` sidesteps that question entirely.
+
+Two rows in one payload naming the same price — by `id` or by key — are an `error` on the
+second, not a silent last-one-wins.
+
+Fields in the natural key (`currency`, `country_iso`, `role_id`, `valid_from`) can only be
+*changed* by a row that names the price by `id`; on a keyed row they are how the price was
+found. `price_type` cannot be changed either way — see
+[Writing prices](#writing-prices).
 
 #### Modes
 

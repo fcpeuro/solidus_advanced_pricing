@@ -12,10 +12,16 @@ RSpec.describe "Price Batch API" do
 
   let(:currency) { Spree::Config.default_pricing_options.currency }
 
+  # `as: :json` is not incidental. Form-encoded params cannot express an array of
+  # hashes whose rows have different keys: Rack starts a new hash only when it
+  # sees a key it has already seen, so `[{id: 1, amount: 2}, {variant_id: 3, amount: 4}]`
+  # arrives as `[{id: 1, amount: 2, variant_id: 3}, {amount: 4}]`. This endpoint
+  # is a JSON endpoint and the specs have to exercise it as one.
   def post_batch(prices:, user: admin, **options)
     post "/api/prices/batch",
       params: {prices: prices}.merge(options),
-      headers: {"Authorization" => "Bearer #{user.spree_api_key}"}
+      headers: {"Authorization" => "Bearer #{user.spree_api_key}"},
+      as: :json
   end
 
   def body = JSON.parse(response.body)
@@ -142,6 +148,83 @@ RSpec.describe "Price Batch API" do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(first.prices.kept.count).to eq(1)
+    end
+  end
+
+  describe "addressing a row by id" do
+    let!(:existing) { first.prices.create!(amount: 60, currency: currency, price_type: sale) }
+
+    it "updates exactly that price" do
+      post_batch(prices: [{id: existing.id, amount: "55.00"}])
+
+      expect(body["summary"]).to eq("updated" => 1)
+      expect(existing.reload.amount).to eq(55)
+      expect(first.prices.kept.count).to eq(2)
+    end
+
+    it "needs no variant_id or sku" do
+      post_batch(prices: [{id: existing.id, amount: "55.00"}])
+
+      expect(body["results"].first["variant_id"]).to eq(first.id)
+    end
+
+    it "can move a natural-key field the key path could not" do
+      role = Spree::Role.create!(name: "wholesale")
+      post_batch(prices: [{id: existing.id, role_id: role.id, valid_from: "2026-11-27T00:00:00Z"}])
+
+      expect(body["summary"]).to eq("updated" => 1)
+      expect(existing.reload.role_id).to eq(role.id)
+      expect(existing.valid_from).to be_present
+    end
+
+    it "reports an id that does not exist rather than creating one" do
+      post_batch(prices: [{id: 0, amount: "55.00"}])
+
+      expect(body["summary"]).to eq("error" => 1)
+      expect(body["results"].first["errors"].first).to include("no price with id 0")
+      expect(first.prices.kept.count).to eq(2)
+    end
+
+    it "refuses an id belonging to a different variant than the row names" do
+      post_batch(prices: [{id: existing.id, variant_id: second.id, amount: "55.00"}])
+
+      expect(body["summary"]).to eq("error" => 1)
+      expect(body["results"].first["errors"].first).to match(/belongs to variant/)
+      expect(existing.reload.amount).to eq(60)
+    end
+
+    it "will not reach a deleted price" do
+      existing.discard
+
+      post_batch(prices: [{id: existing.id, amount: "55.00"}])
+
+      expect(body["summary"]).to eq("error" => 1)
+      expect(body["results"].first["errors"].first).to include("no price with id")
+    end
+
+    it "still refuses to retype the price" do
+      post_batch(prices: [{id: existing.id, price_type_code: "clearance"}])
+
+      expect(body["summary"]).to eq("error" => 1)
+      expect(body["results"].first["errors"].join).to match(/cannot be changed/i)
+      expect(existing.reload.price_type_id).to eq(sale.id)
+    end
+
+    it "reports the same id twice in one payload as a duplicate" do
+      post_batch(prices: [{id: existing.id, amount: "55.00"}, {id: existing.id, amount: "50.00"}])
+
+      expect(body["summary"]).to eq("updated" => 1, "error" => 1)
+      expect(body["results"].last["errors"].first).to include("same price id")
+      expect(existing.reload.amount).to eq(55)
+    end
+
+    it "mixes with keyed rows in one payload" do
+      post_batch(prices: [
+        {id: existing.id, amount: "55.00"},
+        {variant_id: second.id, amount: "45.00", price_type_code: "sale"}
+      ])
+
+      expect(body["summary"]).to eq("updated" => 1, "created" => 1)
     end
   end
 

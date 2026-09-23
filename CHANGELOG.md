@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format is based on
   is a no-op rather than a pile of duplicates. Always answers `200` with a per-row report.
   - `dry_run: true` runs the real work in a transaction and rolls it back, so the report
     reflects what the write would do rather than a guess at it.
+  - A row carrying `id` names that price outright: `variant_id`/`sku` become optional and
+    are checked rather than applied, natural-key fields such as `currency`, `role_id` and
+    `valid_from` become editable, and an unknown or deleted `id` is a row error rather than
+    a new price.
   - `mode: "replace"` also discards prices the payload left out — scoped to price types and
     variants the payload actually named.
   - Rows are applied independently in savepoints, so one bad row does not take the batch

@@ -27,6 +27,7 @@ module Spree
         params.require(:prices).map do |row|
           row.permit(
             *Spree::PermittedAttributes.price_attributes,
+            :id,
             :variant_id,
             :sku,
             :price_type_code
