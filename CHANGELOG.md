@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Installing the gem without registering its price selector broke every
+  `variant.price = ...`**, product creation included, with
+  `NoMethodError: undefined method 'price_type_id' for an instance of
+  Spree::Variant::PricingOptions`. Core calls `default_price` on the way into
+  `price=`, and this gem's override reached for a typed fallback through
+  `pricing_options.with(price_type_id: :any)` — which only works on this gem's
+  own `PricingOptions`. A store that left
+  `Spree::Config.variant_price_selector_class` alone got core's, where `with`
+  falls through to ActiveSupport's `Object#with` and `public_send`s the key.
+  Present since 0.2.0, when the fallback was added.
+
+  The fallback is now skipped unless this gem's pricing options are in play.
+  Without the selector there are no typed prices to fall back to, so the right
+  answer is core's: nothing.
+- `Spree::Variant#price_of_type` and `#base_price` now raise
+  `SolidusAdvancedPricing::SelectorNotRegistered`, naming the setting to change,
+  instead of a `NoMethodError` about `price_type_id`.
+
 ## [0.3.0] - 2026-09-23
 
 ### Added
